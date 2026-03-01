@@ -1,1 +1,20 @@
+# macOS
+.DS_Store
+Icon?
+
+# Build output (不 commit 編譯產物)
+pbrt-v4/build/
+
+# raytracing 書本 HTML release (整個 repo 可以用 submodule 管理，或視需要加)
+# 若要 commit 則移除下一行
+raytracing.github.io-release/
+
+# 一般忽略
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+*.bin
+
 sample/
