@@ -1,0 +1,32 @@
+LookAt 0 2 6.0   0 1 0   0 1 0
+Camera "perspective" "float fov" [45]
+
+# Film "rgb" "integer xresolution" [768] "integer yresolution" [512]
+Sampler "halton" "integer pixelsamples" [512]
+Integrator "volpath" 
+
+WorldBegin
+
+# LightSource "infinite" "rgb L" [0.5 0.45 0.4]
+LightSource "point" "point3 from" [3 5 2] "rgb I" [100 100 100]
+# LightSource "distant" "point3 from" [3 5 2] "point3 to" [0 1 0] "blackbody L" 4000
+
+AttributeBegin
+    Rotate -80 1 0 0
+    Material "diffuse" "rgb reflectance" [0.15 0.15 0.18]
+    # Material "dielectric"
+    Shape "disk" "float radius" [7]
+AttributeEnd
+
+AttributeBegin
+    Translate 0 1 0
+    Rotate 25 1 1 0
+    Scale 1 0.1 2.2
+
+    Material "coateddiffuse"
+        "rgb reflectance" [0.75 0.25 0.2]
+        "float roughness" [0.03]
+
+    Shape "sphere" "float radius" [1]
+    
+AttributeEnd

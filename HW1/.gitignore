@@ -1,0 +1,20 @@
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Temporary logs and caches
+*.log
+*.tmp
+*.cache
+
+# Local build / scratch outputs
+part_2/build/
+part_2/tmp/
+part_2/intermediate/
+
+# Optional heavy render formats
+part_2/results/*.exr
+part_2/results/*.pfm

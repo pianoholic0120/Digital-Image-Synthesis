@@ -1,0 +1,7 @@
+template <typename T>
+PBRT_CPU_GPU inline Normal3<T> Transform::operator()(Normal3<T> n) const {
+    T x = n.x, y = n.y, z = n.z;
+    return Normal3<T>(mInv[0][0] * x + mInv[1][0] * y + mInv[2][0] * z,
+                      mInv[0][1] * x + mInv[1][1] * y + mInv[2][1] * z,
+                      mInv[0][2] * x + mInv[1][2] * y + mInv[2][2] * z);
+}
