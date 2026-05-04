@@ -1,0 +1,178 @@
+# accel-compare-stadium.pbrt
+# Goal: huge mostly-empty scene + tiny but detailed center teapot surrogate.
+# This is intentionally "teapot in a stadium"-like to stress uniform grid construction.
+
+LookAt 0 24 140   0 1.5 0   0 1 0
+Camera "perspective" "float fov" [34]
+
+Film "rgb" "integer xresolution" [960] "integer yresolution" [540]
+    "string filename" ["accel-compare-stadium.exr"]
+
+Sampler "halton" "integer pixelsamples" [128]
+Integrator "path" "integer maxdepth" [10]
+
+Accelerator "bvh"
+
+WorldBegin
+
+LightSource "infinite" "rgb L" [0.48 0.51 0.57]
+LightSource "point" "point3 from" [0 80 80] "rgb I" [220 220 240]
+
+# Huge stadium-like bounds (mostly empty)
+AttributeBegin
+    Material "diffuse" "rgb reflectance" [0.18 0.20 0.19]
+    Shape "disk" "float radius" [420]
+AttributeEnd
+
+# Very far sparse "rim" to keep bounds gigantic while geometry remains tiny in proportion.
+Material "diffuse" "rgb reflectance" [0.28 0.30 0.34]
+AttributeBegin Translate  390 0 0 Shape "sphere" "float radius" [3] AttributeEnd
+AttributeBegin Translate -390 0 0 Shape "sphere" "float radius" [3] AttributeEnd
+AttributeBegin Translate 0 0  390 Shape "sphere" "float radius" [3] AttributeEnd
+AttributeBegin Translate 0 0 -390 Shape "sphere" "float radius" [3] AttributeEnd
+
+# Tiny, high-detail teapot surrogate (centered near origin)
+# Built from many small spheres: body + lid + knob + spout + handle
+Material "coateddiffuse"
+    "rgb reflectance" [0.84 0.63 0.24]
+    "float roughness" [0.08]
+
+# Body rings (dense micro spheres)
+AttributeBegin Translate 0 0.34 0 Shape "sphere" "float radius" [0.14] AttributeEnd
+AttributeBegin Translate 0.20 0.34 0.00 Shape "sphere" "float radius" [0.06] AttributeEnd
+AttributeBegin Translate 0.18 0.34 0.09 Shape "sphere" "float radius" [0.06] AttributeEnd
+AttributeBegin Translate 0.12 0.34 0.16 Shape "sphere" "float radius" [0.06] AttributeEnd
+AttributeBegin Translate 0.04 0.34 0.20 Shape "sphere" "float radius" [0.06] AttributeEnd
+AttributeBegin Translate -0.04 0.34 0.20 Shape "sphere" "float radius" [0.06] AttributeEnd
+AttributeBegin Translate -0.12 0.34 0.16 Shape "sphere" "float radius" [0.06] AttributeEnd
+AttributeBegin Translate -0.18 0.34 0.09 Shape "sphere" "float radius" [0.06] AttributeEnd
+AttributeBegin Translate -0.20 0.34 0.00 Shape "sphere" "float radius" [0.06] AttributeEnd
+AttributeBegin Translate -0.18 0.34 -0.09 Shape "sphere" "float radius" [0.06] AttributeEnd
+AttributeBegin Translate -0.12 0.34 -0.16 Shape "sphere" "float radius" [0.06] AttributeEnd
+AttributeBegin Translate -0.04 0.34 -0.20 Shape "sphere" "float radius" [0.06] AttributeEnd
+AttributeBegin Translate 0.04 0.34 -0.20 Shape "sphere" "float radius" [0.06] AttributeEnd
+AttributeBegin Translate 0.12 0.34 -0.16 Shape "sphere" "float radius" [0.06] AttributeEnd
+AttributeBegin Translate 0.18 0.34 -0.09 Shape "sphere" "float radius" [0.06] AttributeEnd
+
+AttributeBegin Translate 0 0.48 0 Shape "sphere" "float radius" [0.15] AttributeEnd
+AttributeBegin Translate 0.24 0.48 0.00 Shape "sphere" "float radius" [0.055] AttributeEnd
+AttributeBegin Translate 0.22 0.48 0.11 Shape "sphere" "float radius" [0.055] AttributeEnd
+AttributeBegin Translate 0.15 0.48 0.19 Shape "sphere" "float radius" [0.055] AttributeEnd
+AttributeBegin Translate 0.05 0.48 0.24 Shape "sphere" "float radius" [0.055] AttributeEnd
+AttributeBegin Translate -0.05 0.48 0.24 Shape "sphere" "float radius" [0.055] AttributeEnd
+AttributeBegin Translate -0.15 0.48 0.19 Shape "sphere" "float radius" [0.055] AttributeEnd
+AttributeBegin Translate -0.22 0.48 0.11 Shape "sphere" "float radius" [0.055] AttributeEnd
+AttributeBegin Translate -0.24 0.48 0.00 Shape "sphere" "float radius" [0.055] AttributeEnd
+AttributeBegin Translate -0.22 0.48 -0.11 Shape "sphere" "float radius" [0.055] AttributeEnd
+AttributeBegin Translate -0.15 0.48 -0.19 Shape "sphere" "float radius" [0.055] AttributeEnd
+AttributeBegin Translate -0.05 0.48 -0.24 Shape "sphere" "float radius" [0.055] AttributeEnd
+AttributeBegin Translate 0.05 0.48 -0.24 Shape "sphere" "float radius" [0.055] AttributeEnd
+AttributeBegin Translate 0.15 0.48 -0.19 Shape "sphere" "float radius" [0.055] AttributeEnd
+AttributeBegin Translate 0.22 0.48 -0.11 Shape "sphere" "float radius" [0.055] AttributeEnd
+
+AttributeBegin Translate 0 0.62 0 Shape "sphere" "float radius" [0.145] AttributeEnd
+AttributeBegin Translate 0.25 0.62 0.00 Shape "sphere" "float radius" [0.05] AttributeEnd
+AttributeBegin Translate 0.23 0.62 0.12 Shape "sphere" "float radius" [0.05] AttributeEnd
+AttributeBegin Translate 0.16 0.62 0.20 Shape "sphere" "float radius" [0.05] AttributeEnd
+AttributeBegin Translate 0.06 0.62 0.24 Shape "sphere" "float radius" [0.05] AttributeEnd
+AttributeBegin Translate -0.06 0.62 0.24 Shape "sphere" "float radius" [0.05] AttributeEnd
+AttributeBegin Translate -0.16 0.62 0.20 Shape "sphere" "float radius" [0.05] AttributeEnd
+AttributeBegin Translate -0.23 0.62 0.12 Shape "sphere" "float radius" [0.05] AttributeEnd
+AttributeBegin Translate -0.25 0.62 0.00 Shape "sphere" "float radius" [0.05] AttributeEnd
+AttributeBegin Translate -0.23 0.62 -0.12 Shape "sphere" "float radius" [0.05] AttributeEnd
+AttributeBegin Translate -0.16 0.62 -0.20 Shape "sphere" "float radius" [0.05] AttributeEnd
+AttributeBegin Translate -0.06 0.62 -0.24 Shape "sphere" "float radius" [0.05] AttributeEnd
+AttributeBegin Translate 0.06 0.62 -0.24 Shape "sphere" "float radius" [0.05] AttributeEnd
+AttributeBegin Translate 0.16 0.62 -0.20 Shape "sphere" "float radius" [0.05] AttributeEnd
+AttributeBegin Translate 0.23 0.62 -0.12 Shape "sphere" "float radius" [0.05] AttributeEnd
+
+AttributeBegin Translate 0 0.76 0 Shape "sphere" "float radius" [0.13] AttributeEnd
+AttributeBegin Translate 0.22 0.76 0.00 Shape "sphere" "float radius" [0.045] AttributeEnd
+AttributeBegin Translate 0.20 0.76 0.10 Shape "sphere" "float radius" [0.045] AttributeEnd
+AttributeBegin Translate 0.14 0.76 0.17 Shape "sphere" "float radius" [0.045] AttributeEnd
+AttributeBegin Translate 0.05 0.76 0.21 Shape "sphere" "float radius" [0.045] AttributeEnd
+AttributeBegin Translate -0.05 0.76 0.21 Shape "sphere" "float radius" [0.045] AttributeEnd
+AttributeBegin Translate -0.14 0.76 0.17 Shape "sphere" "float radius" [0.045] AttributeEnd
+AttributeBegin Translate -0.20 0.76 0.10 Shape "sphere" "float radius" [0.045] AttributeEnd
+AttributeBegin Translate -0.22 0.76 0.00 Shape "sphere" "float radius" [0.045] AttributeEnd
+AttributeBegin Translate -0.20 0.76 -0.10 Shape "sphere" "float radius" [0.045] AttributeEnd
+AttributeBegin Translate -0.14 0.76 -0.17 Shape "sphere" "float radius" [0.045] AttributeEnd
+AttributeBegin Translate -0.05 0.76 -0.21 Shape "sphere" "float radius" [0.045] AttributeEnd
+AttributeBegin Translate 0.05 0.76 -0.21 Shape "sphere" "float radius" [0.045] AttributeEnd
+AttributeBegin Translate 0.14 0.76 -0.17 Shape "sphere" "float radius" [0.045] AttributeEnd
+AttributeBegin Translate 0.20 0.76 -0.10 Shape "sphere" "float radius" [0.045] AttributeEnd
+
+# Lid + knob
+AttributeBegin Translate 0 0.90 0 Shape "sphere" "float radius" [0.095] AttributeEnd
+AttributeBegin Translate 0.13 0.90 0.00 Shape "sphere" "float radius" [0.034] AttributeEnd
+AttributeBegin Translate 0.09 0.90 0.09 Shape "sphere" "float radius" [0.034] AttributeEnd
+AttributeBegin Translate 0.00 0.90 0.13 Shape "sphere" "float radius" [0.034] AttributeEnd
+AttributeBegin Translate -0.09 0.90 0.09 Shape "sphere" "float radius" [0.034] AttributeEnd
+AttributeBegin Translate -0.13 0.90 0.00 Shape "sphere" "float radius" [0.034] AttributeEnd
+AttributeBegin Translate -0.09 0.90 -0.09 Shape "sphere" "float radius" [0.034] AttributeEnd
+AttributeBegin Translate 0.00 0.90 -0.13 Shape "sphere" "float radius" [0.034] AttributeEnd
+AttributeBegin Translate 0.09 0.90 -0.09 Shape "sphere" "float radius" [0.034] AttributeEnd
+AttributeBegin Translate 0 1.02 0 Shape "sphere" "float radius" [0.05] AttributeEnd
+AttributeBegin Translate 0 1.09 0 Shape "sphere" "float radius" [0.026] AttributeEnd
+
+# Spout (many tiny beads)
+AttributeBegin Translate 0.24 0.66 0.00 Shape "sphere" "float radius" [0.040] AttributeEnd
+AttributeBegin Translate 0.30 0.69 0.00 Shape "sphere" "float radius" [0.038] AttributeEnd
+AttributeBegin Translate 0.36 0.72 0.00 Shape "sphere" "float radius" [0.036] AttributeEnd
+AttributeBegin Translate 0.42 0.75 0.00 Shape "sphere" "float radius" [0.034] AttributeEnd
+AttributeBegin Translate 0.48 0.79 0.00 Shape "sphere" "float radius" [0.032] AttributeEnd
+AttributeBegin Translate 0.53 0.83 0.00 Shape "sphere" "float radius" [0.030] AttributeEnd
+AttributeBegin Translate 0.58 0.88 0.00 Shape "sphere" "float radius" [0.028] AttributeEnd
+AttributeBegin Translate 0.62 0.93 0.00 Shape "sphere" "float radius" [0.026] AttributeEnd
+AttributeBegin Translate 0.66 0.98 0.00 Shape "sphere" "float radius" [0.025] AttributeEnd
+AttributeBegin Translate 0.70 1.03 0.00 Shape "sphere" "float radius" [0.024] AttributeEnd
+AttributeBegin Translate 0.73 1.08 0.00 Shape "sphere" "float radius" [0.023] AttributeEnd
+AttributeBegin Translate 0.76 1.12 0.00 Shape "sphere" "float radius" [0.022] AttributeEnd
+
+# Spout lip cross-detail
+AttributeBegin Translate 0.79 1.14 0.03 Shape "sphere" "float radius" [0.017] AttributeEnd
+AttributeBegin Translate 0.79 1.14 -0.03 Shape "sphere" "float radius" [0.017] AttributeEnd
+AttributeBegin Translate 0.81 1.13 0.00 Shape "sphere" "float radius" [0.018] AttributeEnd
+
+# Handle arc (dense)
+AttributeBegin Translate -0.25 0.66 0.00 Shape "sphere" "float radius" [0.037] AttributeEnd
+AttributeBegin Translate -0.30 0.72 0.04 Shape "sphere" "float radius" [0.034] AttributeEnd
+AttributeBegin Translate -0.34 0.78 0.08 Shape "sphere" "float radius" [0.032] AttributeEnd
+AttributeBegin Translate -0.37 0.85 0.11 Shape "sphere" "float radius" [0.031] AttributeEnd
+AttributeBegin Translate -0.39 0.92 0.13 Shape "sphere" "float radius" [0.030] AttributeEnd
+AttributeBegin Translate -0.40 0.99 0.14 Shape "sphere" "float radius" [0.029] AttributeEnd
+AttributeBegin Translate -0.40 1.06 0.13 Shape "sphere" "float radius" [0.029] AttributeEnd
+AttributeBegin Translate -0.39 1.13 0.11 Shape "sphere" "float radius" [0.030] AttributeEnd
+AttributeBegin Translate -0.37 1.20 0.08 Shape "sphere" "float radius" [0.031] AttributeEnd
+AttributeBegin Translate -0.34 1.26 0.04 Shape "sphere" "float radius" [0.032] AttributeEnd
+AttributeBegin Translate -0.30 1.31 0.00 Shape "sphere" "float radius" [0.034] AttributeEnd
+AttributeBegin Translate -0.26 1.34 -0.03 Shape "sphere" "float radius" [0.035] AttributeEnd
+AttributeBegin Translate -0.21 1.36 -0.05 Shape "sphere" "float radius" [0.035] AttributeEnd
+AttributeBegin Translate -0.16 1.37 -0.06 Shape "sphere" "float radius" [0.035] AttributeEnd
+AttributeBegin Translate -0.11 1.36 -0.07 Shape "sphere" "float radius" [0.034] AttributeEnd
+AttributeBegin Translate -0.06 1.34 -0.07 Shape "sphere" "float radius" [0.033] AttributeEnd
+
+# Handle inner arc (extra detail)
+AttributeBegin Translate -0.20 0.74 0.00 Shape "sphere" "float radius" [0.020] AttributeEnd
+AttributeBegin Translate -0.24 0.80 0.03 Shape "sphere" "float radius" [0.019] AttributeEnd
+AttributeBegin Translate -0.27 0.87 0.06 Shape "sphere" "float radius" [0.018] AttributeEnd
+AttributeBegin Translate -0.29 0.94 0.08 Shape "sphere" "float radius" [0.018] AttributeEnd
+AttributeBegin Translate -0.29 1.01 0.09 Shape "sphere" "float radius" [0.018] AttributeEnd
+AttributeBegin Translate -0.29 1.08 0.08 Shape "sphere" "float radius" [0.018] AttributeEnd
+AttributeBegin Translate -0.27 1.15 0.06 Shape "sphere" "float radius" [0.018] AttributeEnd
+AttributeBegin Translate -0.24 1.21 0.03 Shape "sphere" "float radius" [0.019] AttributeEnd
+AttributeBegin Translate -0.20 1.26 0.00 Shape "sphere" "float radius" [0.020] AttributeEnd
+
+# Micro detail shell for "very fine" teapot feel
+AttributeBegin Translate 0.11 0.57 0.11 Shape "sphere" "float radius" [0.018] AttributeEnd
+AttributeBegin Translate -0.11 0.57 0.11 Shape "sphere" "float radius" [0.018] AttributeEnd
+AttributeBegin Translate 0.11 0.57 -0.11 Shape "sphere" "float radius" [0.018] AttributeEnd
+AttributeBegin Translate -0.11 0.57 -0.11 Shape "sphere" "float radius" [0.018] AttributeEnd
+AttributeBegin Translate 0.15 0.67 0.06 Shape "sphere" "float radius" [0.017] AttributeEnd
+AttributeBegin Translate -0.15 0.67 0.06 Shape "sphere" "float radius" [0.017] AttributeEnd
+AttributeBegin Translate 0.15 0.67 -0.06 Shape "sphere" "float radius" [0.017] AttributeEnd
+AttributeBegin Translate -0.15 0.67 -0.06 Shape "sphere" "float radius" [0.017] AttributeEnd
+AttributeBegin Translate 0.06 0.81 0.12 Shape "sphere" "float radius" [0.016] AttributeEnd
+AttributeBegin Translate -0.06 0.81 0.12 Shape "sphere" "float radius" [0.016] AttributeEnd
+AttributeBegin Translate 0.06 0.81 -0.12 Shape "sphere" "float radius" [0.016] AttributeEnd
+AttributeBegin Translate -0.06 0.81 -0.12 Shape "sphere" "float radius" [0.016] AttributeEnd
