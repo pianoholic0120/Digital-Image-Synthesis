@@ -34,25 +34,28 @@ int main(int argc, char *argv[]) {
     InitPBRT(options);
 
     Printf("Building scene on GPU path: %s\n", filenames[0].c_str());
+    Printf("(GPU path uses OptiX/wavefront; CPU Accelerator lines are not used for tracing.)\n");
 
-    auto buildStart = std::chrono::high_resolution_clock::now();
+    auto parseStart = std::chrono::high_resolution_clock::now();
     BasicScene scene;
     BasicSceneBuilder builder(&scene);
     ParseFiles(&builder, filenames);
-    auto buildEnd = std::chrono::high_resolution_clock::now();
+    auto parseEnd = std::chrono::high_resolution_clock::now();
 
-    auto renderStart = std::chrono::high_resolution_clock::now();
+    auto wavefrontStart = std::chrono::high_resolution_clock::now();
     RenderWavefront(scene);
-    auto renderEnd = std::chrono::high_resolution_clock::now();
+    auto wavefrontEnd = std::chrono::high_resolution_clock::now();
 
-    auto buildMs = std::chrono::duration_cast<std::chrono::milliseconds>(buildEnd - buildStart);
-    auto renderMs = std::chrono::duration_cast<std::chrono::milliseconds>(renderEnd - renderStart);
-    auto totalWorkMs = std::chrono::duration_cast<std::chrono::milliseconds>(renderEnd - buildStart);
+    auto parseMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(parseEnd - parseStart);
+    auto wavefrontMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(wavefrontEnd - wavefrontStart);
+    auto totalWorkMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(wavefrontEnd - parseStart);
 
     Printf("Scene processed (GPU path)\n");
-    Printf("Construction time: %d ms\n", (int)buildMs.count());
-    Printf("Rendering time: %d ms\n", (int)renderMs.count());
-    // Single continuous clock for parse+build through end of render; equals construct+render.
+    Printf("Scene parse time: %d ms\n", (int)parseMs.count());
+    Printf("Wavefront pipeline time: %d ms\n", (int)wavefrontMs.count());
     Printf("Total work time: %d ms\n", (int)totalWorkMs.count());
 
     CleanupPBRT();

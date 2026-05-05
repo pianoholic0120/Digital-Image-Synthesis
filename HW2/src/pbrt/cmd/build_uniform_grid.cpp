@@ -12,6 +12,7 @@
 #include <pbrt/util/print.h>
 
 #include <chrono>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -36,23 +37,24 @@ int main(int argc, char *argv[]) {
 
     Printf("Building scene: %s\n", filenames[0].c_str());
 
-    auto buildStart = std::chrono::high_resolution_clock::now();
+    auto totalStart = std::chrono::high_resolution_clock::now();
     BasicScene scene;
     BasicSceneBuilder builder(&scene);
     ParseFiles(&builder, filenames);
-    auto buildEnd = std::chrono::high_resolution_clock::now();
 
-    auto renderStart = std::chrono::high_resolution_clock::now();
-    RenderCPU(scene);
-    auto renderEnd = std::chrono::high_resolution_clock::now();
+    int64_t acceleratorBuildMs = 0;
+    int64_t integratorRenderMs = 0;
+    RenderCPU(scene, &acceleratorBuildMs, &integratorRenderMs);
+    auto totalEnd = std::chrono::high_resolution_clock::now();
 
-    auto buildMs = std::chrono::duration_cast<std::chrono::milliseconds>(buildEnd - buildStart);
-    auto renderMs = std::chrono::duration_cast<std::chrono::milliseconds>(renderEnd - renderStart);
-    auto totalWorkMs = std::chrono::duration_cast<std::chrono::milliseconds>(renderEnd - buildStart);
+    auto totalWorkMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(totalEnd - totalStart);
 
     Printf("Scene processed\n");
-    Printf("Construction time: %d ms\n", (int)buildMs.count());
-    Printf("Rendering time: %d ms\n", (int)renderMs.count());
+    // Use "%d" for integers: pbrt's Printf expands %d to the correct width per type;
+    // a literal "%lld" would be mangled (see util/print.h stringPrintfRecursive).
+    Printf("Construction time: %d ms\n", (int)acceleratorBuildMs);
+    Printf("Rendering time: %d ms\n", (int)integratorRenderMs);
     Printf("Total work time: %d ms\n", (int)totalWorkMs.count());
 
     CleanupPBRT();

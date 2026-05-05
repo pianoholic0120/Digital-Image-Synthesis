@@ -7,11 +7,18 @@
 
 #include <pbrt/pbrt.h>
 
+#include <cstdint>
+
 namespace pbrt {
 
 class BasicScene;
 
 void RenderCPU(BasicScene &scene);
+
+// Optional timings (milliseconds): top-level aggregate/accelerator build, then integrator
+// rendering only. Pass nullptr to omit.
+void RenderCPU(BasicScene &scene, int64_t *outAcceleratorBuildMs,
+               int64_t *outIntegratorRenderMs);
 
 }  // namespace pbrt
 

@@ -7,8 +7,10 @@ Uses the **CPU** tool `build_uniform_grid` only (`RenderCPU` respects the scene
 `Accelerator` directive). Do **not** use `build_uniform_grid_gpu` here — the GPU
 renderer always traces with OptiX and ignores `Accelerator`.
 
-Wall(work) comes from the executable's "Total work time" line (= construct + render
-when phases are contiguous). Progress bar "(Xs)" may differ from internal ms timers.
+"Construction time" / "Rendering time" from build_uniform_grid are top-level aggregate
+build (`CreateAggregate`) and `integrator->Render()` only. "Total work time" is wall
+clock from scene parse through end of `RenderCPU` (includes parse, texture/light/material
+setup, those two phases, and integrator construction). Progress bar "(Xs)" may differ.
 
 Usage:
   python benchmark_accelerators.py scene.pbrt
@@ -136,6 +138,8 @@ def find_default_cpu_executable() -> Path | None:
     """Locate build_uniform_grid next to typical CMake build folders."""
     name = cpu_exe_name()
     rel_dirs = [
+        Path("build-cpu-only") / "Release",
+        Path("build-cpu-only") / "RelWithDebInfo",
         Path("build-cuda124-customtoolset") / "Release",
         Path("build") / "Release",
         Path("Release"),
@@ -160,9 +164,11 @@ def set_scene_accelerator(scene_text: str, accelerator: str) -> str:
 
 def parse_timings(output_text: str):
     timings = {}
-    build_match = re.search(r"Construction time:\s*(\d+)\s*ms", output_text)
-    render_match = re.search(r"Rendering time:\s*(\d+)\s*ms", output_text)
-    total_match = re.search(r"Total work time:\s*(\d+)\s*ms", output_text)
+    # build_uniform_grid prints integer ms (may be 64-bit values on large runs)
+    int_ms = r"(\d+)"
+    build_match = re.search(rf"Construction time:\s*{int_ms}\s*ms", output_text)
+    render_match = re.search(rf"Rendering time:\s*{int_ms}\s*ms", output_text)
+    total_match = re.search(rf"Total work time:\s*{int_ms}\s*ms", output_text)
     if build_match:
         timings["construction_ms"] = int(build_match.group(1))
     if render_match:
@@ -429,7 +435,9 @@ def print_summary(results):
 
     lines.append("")
     lines.append(
-        "Wall(work) = Total work time from build_uniform_grid (= Construct + Render). "
+        "Wall(work) = Total work time from build_uniform_grid (parse through end of RenderCPU). "
+        "Construct/Render columns are aggregate build and integrator->Render only; "
+        "overhead_ms = Wall - Construct - Render (parse, textures, integrator setup, etc.). "
         "Subproc = full process wall time (InitPBRT, cleanup, etc.)."
     )
     summary_text = "\n".join(lines)

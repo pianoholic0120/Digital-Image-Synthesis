@@ -19,9 +19,36 @@
 #include <pbrt/util/colorspace.h>
 #include <pbrt/util/parallel.h>
 
+#include <chrono>
+#include <cmath>
+
+namespace {
+
+// Milliseconds for homework timing lines. Stock pbrt-v4 does not split aggregate build vs
+// integrator in one place; EXR metadata.renderTimeSeconds is integrator-only (see
+// cpu/integrators.cpp). Rounding can yield 0 ms for very fast CreateAggregate; if the
+// interval is non-empty, report at least 1 ms so tables are not misleading.
+int64_t elapsed_ms_for_report(
+    const std::chrono::high_resolution_clock::time_point &t0,
+    const std::chrono::high_resolution_clock::time_point &t1) {
+    if (!(t1 > t0))
+        return 0;
+    const double ms =
+        std::chrono::duration<double, std::milli>(t1 - t0).count();
+    const int64_t r = (int64_t)std::llround(ms);
+    return r > 0 ? r : 1;
+}
+
+}  // namespace
+
 namespace pbrt {
 
-void RenderCPU(BasicScene &parsedScene) {
+void RenderCPU(BasicScene &parsedScene, int64_t *outAcceleratorBuildMs,
+               int64_t *outIntegratorRenderMs) {
+    if (outAcceleratorBuildMs)
+        *outAcceleratorBuildMs = 0;
+    if (outIntegratorRenderMs)
+        *outIntegratorRenderMs = 0;
     Allocator alloc;
     ThreadLocal<Allocator> threadAllocators([]() { return Allocator(); });
 
@@ -44,8 +71,12 @@ void RenderCPU(BasicScene &parsedScene) {
     parsedScene.CreateMaterials(textures, &namedMaterials, &materials);
     LOG_VERBOSE("Finished materials");
 
+    auto accelBuildStart = std::chrono::high_resolution_clock::now();
     Primitive accel = parsedScene.CreateAggregate(textures, shapeIndexToAreaLights, media,
                                                   namedMaterials, materials);
+    auto accelBuildEnd = std::chrono::high_resolution_clock::now();
+    if (outAcceleratorBuildMs)
+        *outAcceleratorBuildMs = elapsed_ms_for_report(accelBuildStart, accelBuildEnd);
 
     Camera camera = parsedScene.GetCamera();
     Film film = camera.GetFilm();
@@ -156,12 +187,19 @@ void RenderCPU(BasicScene &parsedScene) {
     }
 
     // Render!
+    auto integratorRenderStart = std::chrono::high_resolution_clock::now();
     integrator->Render();
+    auto integratorRenderEnd = std::chrono::high_resolution_clock::now();
+    if (outIntegratorRenderMs)
+        *outIntegratorRenderMs =
+            elapsed_ms_for_report(integratorRenderStart, integratorRenderEnd);
 
     LOG_VERBOSE("Memory used after rendering: %s", GetCurrentRSS());
 
     PtexTextureBase::ReportStats();
     ImageTextureBase::ClearCache();
 }
+
+void RenderCPU(BasicScene &parsedScene) { RenderCPU(parsedScene, nullptr, nullptr); }
 
 }  // namespace pbrt
