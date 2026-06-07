@@ -1,0 +1,54 @@
+# Occlusion / layering: glass panel in front of 3DGS
+
+Film "rgb"
+    "string filename" ["occlusion.exr"]
+    "integer xresolution" [800] "integer yresolution" [600]
+
+Sampler "halton"
+    "integer pixelsamples" [128]
+
+Integrator "path"
+
+Accelerator "bvh"
+
+LookAt 2 1.5 4  0 0.5 0  0 1 0
+Camera "perspective"
+    "float fov" [45]
+
+WorldBegin
+
+Material "gaussian"
+    "integer sh_degree" [3]
+
+# Ground
+Material "diffuse"
+    "rgb reflectance" [0.4 0.4 0.4]
+Shape "bilinearmesh"
+    "point3 P" [-3 0 -3, 3 0 -3, -3 0 3, 3 0 3]
+    "integer indices" [0 1 2 3]
+
+# 3DGS object behind glass
+AttributeBegin
+    Translate 0 0.8 -0.5
+    Material "gaussian"
+    Shape "gaussiancloud"
+        "string filename" ["assets/lego/point_cloud.ply"]
+        "float sigma_cutoff" [2.828]
+        "integer sh_degree" [3]
+AttributeEnd
+
+# Glass panel between camera and object
+AttributeBegin
+    Material "glass"
+        "rgb transmittance" [0.95 0.98 1.0]
+        "float eta" [1.5]
+    Translate 0 1.0 0.8
+    Rotate 15 1 0 0
+    Shape "bilinearmesh"
+        "point3 P" [-1.2 0 -0.8, 1.2 0 -0.8, -1.2 2.0 -0.8, 1.2 2.0 -0.8]
+        "integer indices" [0 1 2 3]
+AttributeEnd
+
+LightSource "distant"
+    "rgb scale" [2.5 2.5 2.5]
+    "vector3 direction" [0.2 -1 -0.3]

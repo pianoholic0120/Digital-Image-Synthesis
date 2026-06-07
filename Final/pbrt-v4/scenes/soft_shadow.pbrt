@@ -1,0 +1,48 @@
+# Soft shadow test: area light vs point light variants (render twice)
+
+Film "rgb"
+    "string filename" ["soft_shadow_area.exr"]
+    "integer xresolution" [800] "integer yresolution" [800]
+
+Sampler "halton"
+    "integer pixelsamples" [64]
+
+Integrator "path"
+
+Accelerator "kdtree"
+
+LookAt 0 1.5 4  0 0.5 0  0 1 0
+Camera "perspective"
+    "float fov" [45]
+
+WorldBegin
+
+Material "diffuse" "floor"
+    "rgb reflectance" [0.8 0.8 0.8]
+Material "gaussian" "gsmat"
+    "integer sh_degree" [3]
+
+# Ground
+AttributeBegin
+    Material "floor"
+    Scale 10 1 10
+    Shape "bilinearmesh"
+        "point3 P" [ -1 0 -1, 1 0 -1, 1 0 1, -1 0 1 ]
+AttributeEnd
+
+# 3DGS
+AttributeBegin
+    Material "gsmat"
+    Shape "gaussiancloud"
+        "string filename" ["assets/room/point_cloud.ply"]
+        "float sigma_cutoff" [2.828]
+AttributeEnd
+
+# Area light (comment out and use point light block for hard shadow)
+AttributeBegin
+    AreaLightSource "diffuse"
+        "rgb L" [20 20 20]
+    Translate 0 3 0
+    Shape "bilinearmesh"
+        "point3 P" [ -0.25 0 -0.25, 0.25 0 -0.25, 0.25 0 0.25, -0.25 0 0.25 ]
+AttributeEnd

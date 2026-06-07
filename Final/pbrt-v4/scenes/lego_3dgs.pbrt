@@ -1,0 +1,35 @@
+# Minimal 3DGS test scene
+
+Film "rgb"
+    "string filename" ["lego_3dgs.exr"]
+    "integer xresolution" [800] "integer yresolution" [800]
+
+Sampler "halton"
+    "integer pixelsamples" [64]
+
+Integrator "path"
+
+Accelerator "kdtree"
+
+LookAt 0 0 3  0 0 0  0 1 0
+Camera "perspective"
+    "float fov" [45]
+
+WorldBegin
+
+Material "gaussian"
+    "integer sh_degree" [3]
+
+AttributeBegin
+    Material "gaussian"
+    Shape "gaussiancloud"
+        "string filename" ["assets/lego/point_cloud.ply"]
+        "float sigma_cutoff" [2.828]
+        "integer sh_degree" [3]
+        "bool use_center_depth" [true]
+        "string internal_accel" ["bvh"]
+AttributeEnd
+
+LightSource "distant"
+    "rgb scale" [2 2 2]
+    "vector3 direction" [0.3 -1 -0.5]

@@ -1,0 +1,21 @@
+scene: scenes/lego_3dgs.pbrt
+reference: gt/lego.png
+variants:
+  - name: ours_center_bvh
+    overrides:
+      use_center_depth: true
+      internal_accel: bvh
+  - name: ours_mean_bvh
+    overrides:
+      use_center_depth: false
+      internal_accel: bvh
+  - name: ours_center_kdtree
+    overrides:
+      use_center_depth: true
+      internal_accel: kdtree
+  - name: sigma_2.0
+    overrides:
+      sigma_cutoff: 2.0
+  - name: sigma_3.5
+    overrides:
+      sigma_cutoff: 3.5
