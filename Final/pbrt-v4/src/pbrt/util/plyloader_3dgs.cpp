@@ -17,8 +17,6 @@
 
 namespace pbrt {
 
-static Float ParseFloat(const std::string &s) { return std::stof(s); }
-
 static Bounds3f ComputeGaussianAABB(const Gaussian3D &g, Float sigmaCutoff) {
     Float w = g.quat[0], x = g.quat[1], y = g.quat[2], z = g.quat[3];
     SquareMatrix<3> R(1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y),
@@ -40,19 +38,22 @@ void PrecomputeGaussian(Gaussian3D *g, Float sigmaCutoff) {
                       2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x),
                       2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y));
 
-    SquareMatrix<3> S(0);
+    SquareMatrix<3> S = SquareMatrix<3>::Zero();
     S[0][0] = g->scale[0] * g->scale[0];
     S[1][1] = g->scale[1] * g->scale[1];
     S[2][2] = g->scale[2] * g->scale[2];
 
-    SquareMatrix<3> sigma = Transpose(R) * S * R;
-    g->sigmaInv = InvertOrExit(sigma);
+    SquareMatrix<3> sigma = R * S * Transpose(R);
+    pstd::optional<SquareMatrix<3>> sigmaInv = Inverse(sigma);
+    if (!sigmaInv)
+        ErrorExit("PrecomputeGaussian: singular covariance matrix.");
+    g->sigmaInv = *sigmaInv;
     g->aabb = ComputeGaussianAABB(*g, sigmaCutoff);
 }
 
 std::vector<Gaussian3D> Load3DGSPly(const std::string &filename, Float sigmaCutoff) {
     std::string path = ResolveFilename(filename);
-    std::ifstream in(path);
+    std::ifstream in(path, std::ios::binary);
     if (!in)
         ErrorExit("%s: unable to open 3DGS PLY file.", path);
 
@@ -64,6 +65,8 @@ std::vector<Gaussian3D> Load3DGSPly(const std::string &filename, Float sigmaCuto
     bool binaryLittle = false;
     std::vector<std::string> properties;
     while (std::getline(in, line)) {
+        if (!line.empty() && line.back() == '\r')
+            line.pop_back();
         if (line == "end_header")
             break;
         if (line.rfind("element vertex", 0) == 0) {

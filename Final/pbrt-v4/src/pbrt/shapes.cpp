@@ -1377,7 +1377,6 @@ std::string BilinearPatch::ToString() const {
 STAT_COUNTER("Geometry/Spheres", nSpheres);
 STAT_COUNTER("Geometry/Cylinders", nCylinders);
 STAT_COUNTER("Geometry/Disks", nDisks);
-STAT_COUNTER("Geometry/GaussianClouds", nGaussianClouds);
 STAT_COUNTER("Geometry/Triangles added from displacement mapping", displacedTrisDelta);
 
 pstd::vector<Shape> Shape::Create(

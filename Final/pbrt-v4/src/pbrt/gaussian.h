@@ -7,7 +7,9 @@
 
 #include <pbrt/pbrt.h>
 
+#include <pbrt/util/color.h>
 #include <pbrt/util/plyloader_3dgs.h>
+#include <pbrt/gaussian_eval.h>
 #include <pbrt/util/spectrum.h>
 #include <pbrt/util/transform.h>
 #include <pbrt/util/vecmath.h>
@@ -20,7 +22,8 @@ class Material;
 
 class GaussianCloud {
   public:
-    enum class InternalAccel { BVH, KDTREE };
+    enum class InternalAccel { BVH, KDTREE, BRUTE };
+    enum class SamplingMode { STOCHASTIC, COMPOSITE };
 
     static GaussianCloud *Create(const Transform *renderFromObject,
                                  const Transform *objectFromRender, bool reverseOrientation,
@@ -32,7 +35,8 @@ class GaussianCloud {
     GaussianCloud(const Transform *renderFromObject, const Transform *objectFromRender,
                   bool reverseOrientation, std::vector<Gaussian3D> gaussians,
                   Float sigmaCutoff, int shDegree, bool useCenterDepth,
-                  InternalAccel internalAccel);
+                  InternalAccel internalAccel, SamplingMode samplingMode,
+                  int multiSamples, RGB backgroundColor, GaussianSHViewDir shViewDir);
 
     PBRT_CPU_GPU Bounds3f Bounds() const;
     PBRT_CPU_GPU DirectionCone NormalBounds() const { return DirectionCone::EntireSphere(); }
@@ -81,6 +85,8 @@ class GaussianCloud {
     void BuildKdTree();
     pstd::optional<ShapeIntersection> IntersectStochastic(const Ray &objectRay,
                                                           Float tMax) const;
+    pstd::optional<ShapeIntersection> IntersectComposite(const Ray &objectRay,
+                                                         Float tMax) const;
     pstd::optional<ShapeIntersection> IntersectBVH(const Ray &objectRay, Float tMax) const;
     pstd::optional<ShapeIntersection> IntersectKdTree(const Ray &objectRay, Float tMax) const;
 
@@ -92,6 +98,10 @@ class GaussianCloud {
     int shDegree;
     bool useCenterDepth;
     InternalAccel internalAccel;
+    SamplingMode samplingMode = SamplingMode::STOCHASTIC;
+    int multiSamples = 1;
+    RGB backgroundColor;
+    GaussianSHViewDir shViewDir = GaussianSHViewDir::CAM_TO_GAUSSIAN;
 
     std::vector<Gaussian3D> gaussians;
     Bounds3f bounds;

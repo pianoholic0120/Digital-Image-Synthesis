@@ -254,21 +254,37 @@ class RGBFilm : public FilmBase {
         pixel.weightSum += weight;
     }
 
+    // Precomputed sRGB-linear display RGB (3DGS composite / stochastic background).
+    PBRT_CPU_GPU
+    void AddDisplayRGBSample(Point2i pFilm, RGB rgb, Float weight) {
+        Float m = std::max({rgb.r, rgb.g, rgb.b});
+        if (m > maxComponentValue)
+            rgb *= maxComponentValue / m;
+
+        DCHECK(InsideExclusive(pFilm, pixelBounds));
+        Pixel &pixel = pixels[pFilm];
+        for (int c = 0; c < 3; ++c)
+            pixel.displayRgbSum[c] += weight * rgb[c];
+        pixel.displayWeightSum += weight;
+    }
+
     PBRT_CPU_GPU
     RGB GetPixelRGB(Point2i p, Float splatScale = 1) const {
         const Pixel &pixel = pixels[p];
-        RGB rgb(pixel.rgbSum[0], pixel.rgbSum[1], pixel.rgbSum[2]);
-        // Normalize _rgb_ with weight sum
-        Float weightSum = pixel.weightSum;
-        if (weightSum != 0)
-            rgb /= weightSum;
+        RGB rgb(0.f, 0.f, 0.f);
+
+        if (pixel.displayWeightSum > 0) {
+            for (int c = 0; c < 3; ++c)
+                rgb[c] = pixel.displayRgbSum[c] / pixel.displayWeightSum;
+        } else if (pixel.weightSum != 0) {
+            for (int c = 0; c < 3; ++c)
+                rgb[c] = pixel.rgbSum[c] / pixel.weightSum;
+            rgb = outputRGBFromSensorRGB * rgb;
+        }
 
         // Add splat value at pixel
         for (int c = 0; c < 3; ++c)
             rgb[c] += splatScale * pixel.rgbSplat[c] / filterIntegral;
-
-        // Convert _rgb_ to output RGB color space
-        rgb = outputRGBFromSensorRGB * rgb;
 
         return rgb;
     }
@@ -303,6 +319,9 @@ class RGBFilm : public FilmBase {
         Pixel() = default;
         double rgbSum[3] = {0., 0., 0.};
         double weightSum = 0.;
+        // Final sRGB-linear display RGB (3DGS composite); not sensor-transformed.
+        double displayRgbSum[3] = {0., 0., 0.};
+        double displayWeightSum = 0.;
         AtomicDouble rgbSplat[3];
     };
 

@@ -193,8 +193,10 @@ GaussianMaterial *GaussianMaterial::Create(const TextureParameterDictionary &par
                                            Image *normalMap, const FileLoc *loc,
                                            Allocator alloc) {
     int shDegree = parameters.GetOneInt("sh_degree", 3);
+    Float emissionScale = parameters.GetOneFloat("emission_scale", 1.f);
     FloatTexture displacement = parameters.GetFloatTextureOrNull("displacement", alloc);
-    return alloc.new_object<GaussianMaterial>(nullptr, shDegree, displacement, normalMap);
+    return alloc.new_object<GaussianMaterial>(nullptr, shDegree, displacement, normalMap,
+                                              emissionScale);
 }
 
 // DiffuseMaterial Method Definitions

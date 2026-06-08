@@ -172,6 +172,9 @@ BSDF SurfaceInteraction::GetBSDF(const RayDifferential &ray, SampledWavelengths 
     if (!material)
         return {};
 
+    if (material.Is<GaussianMaterial>())
+        return {};
+
     // Evaluate normal or bump map, if present
     FloatTexture displacement = material.GetDisplacement();
     const Image *normalMap = material.GetNormalMap();
@@ -217,7 +220,16 @@ BSSRDF SurfaceInteraction::GetBSSRDF(const RayDifferential &ray,
 
 PBRT_CPU_GPU SampledSpectrum SurfaceInteraction::Le(Vector3f w,
                                        const SampledWavelengths &lambda) const {
-    return areaLight ? areaLight.L(p(), n, uv, w, lambda) : SampledSpectrum(0.f);
+    if (areaLight)
+        return areaLight.L(p(), n, uv, w, lambda);
+    if (material && material.Is<GaussianMaterial>()) {
+        if (const GaussianMaterial *gm = material.Cast<GaussianMaterial>()) {
+            SampledWavelengths wl = lambda;
+            MaterialEvalContext ctx(*this);
+            return gm->GetEmission(ctx, wl);
+        }
+    }
+    return SampledSpectrum(0.f);
 }
 
 std::string SurfaceInteraction::ToString() const {

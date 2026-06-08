@@ -4,6 +4,7 @@
 
 #include <pbrt/cpu/integrators.h>
 
+#include <pbrt/gaussian_eval.h>
 #include <pbrt/util/trighash.h>
 
 #include <pbrt/bsdf.h>
@@ -229,6 +230,7 @@ void ImageTileIntegrator::Render() {
 void RayIntegrator::EvaluatePixelSample(Point2i pPixel, int sampleIndex, Sampler sampler,
                                         ScratchBuffer &scratchBuffer) {
     SetGaussianFrameNumber(sampleIndex);
+    ResetGaussianDirectRGBSample();
     // Sample wavelengths for the ray
     Float lu = sampler.Get1D();
     if (Options->disableWavelengthJitter)
@@ -287,8 +289,17 @@ void RayIntegrator::EvaluatePixelSample(Point2i pPixel, int sampleIndex, Sampler
 			             .c_str());
     }
     // Add camera ray's contribution to image
-    camera.GetFilm().AddSample(pPixel, L, lambda, &visibleSurface,
-                               cameraSample.filterWeight);
+    if (pstd::optional<RGB> directRGB = GetGaussianDirectRGBSample()) {
+        if (RGBFilm *rgbFilm = camera.GetFilm().CastOrNullptr<RGBFilm>())
+            rgbFilm->AddDisplayRGBSample(pPixel, *directRGB, cameraSample.filterWeight);
+        else
+            camera.GetFilm().AddSample(pPixel, L, lambda, &visibleSurface,
+                                       cameraSample.filterWeight);
+        ResetGaussianDirectRGBSample();
+    } else {
+        camera.GetFilm().AddSample(pPixel, L, lambda, &visibleSurface,
+                                   cameraSample.filterWeight);
+    }
 }
 
 // Integrator Utility Functions
@@ -682,6 +693,8 @@ SampledSpectrum PathIntegrator::Li(RayDifferential ray, SampledWavelengths &lamb
         // Get BSDF and skip over medium boundaries
         BSDF bsdf = isect.GetBSDF(ray, lambda, camera, scratchBuffer, sampler);
         if (!bsdf) {
+            if (isect.material.Is<GaussianMaterial>())
+                break;
             specularBounce = true;  // disable MIS if the indirect ray hits a light
             isect.SkipIntersection(&ray, si->tHit);
             continue;

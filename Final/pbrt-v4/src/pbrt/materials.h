@@ -463,8 +463,12 @@ class GaussianMaterial {
     static const char *Name() { return "GaussianMaterial"; }
 
     GaussianMaterial(const GaussianCloud *cloud, int shDegree, FloatTexture displacement,
-                     Image *normalMap)
-        : cloud(cloud), shDegree(shDegree), normalMap(normalMap), displacement(displacement) {}
+                     Image *normalMap, Float emissionScale = 1.f)
+        : cloud(cloud),
+          shDegree(shDegree),
+          normalMap(normalMap),
+          displacement(displacement),
+          emissionScale(emissionScale) {}
 
     void SetCloud(const GaussianCloud *c) { cloud = c; }
 
@@ -489,11 +493,15 @@ class GaussianMaterial {
     PBRT_CPU_GPU DiffuseBxDF GetBxDF(TextureEvaluator, MaterialEvalContext ctx,
                                      SampledWavelengths &wl) const;
 
+    PBRT_CPU_GPU SampledSpectrum GetEmission(MaterialEvalContext ctx,
+                                             SampledWavelengths &wl) const;
+
     std::string ToString() const;
 
   private:
     const GaussianCloud *cloud;
     int shDegree;
+    Float emissionScale;
     StoredNormalMap normalMap;
     StoredFloatTexture displacement;
 };
@@ -1030,13 +1038,34 @@ PBRT_CPU_GPU inline const Image *Material::GetNormalMap() const {
 
 namespace pbrt {
 
+PBRT_CPU_GPU inline SampledSpectrum GaussianMaterial::GetEmission(
+    MaterialEvalContext ctx, SampledWavelengths &wl) const {
+    if (!cloud)
+        return SampledSpectrum(0.f);
+
+    auto emissionFromRGB = [&](RGB rgb) {
+        rgb = RGB(Clamp(rgb.r, 0.f, Infinity), Clamp(rgb.g, 0.f, Infinity),
+                  Clamp(rgb.b, 0.f, Infinity));
+        RGBUnboundedSpectrum spec(*RGBColorSpace::sRGB, rgb);
+        return spec.Sample(wl) * wl.PDF() * emissionScale;
+    };
+
+    if (ctx.faceIndex == kGaussianCompositeFaceIndex ||
+        ctx.faceIndex == kGaussianMultiSampleFaceIndex ||
+        ctx.faceIndex == kGaussianBackgroundFaceIndex)
+        return emissionFromRGB(RGB(ctx.dpdus.x, ctx.dpdus.y, ctx.dpdus.z));
+
+    Vector3f viewDir = Normalize(ctx.dpdus);
+    if (LengthSquared(viewDir) < 1e-16f)
+        viewDir = Normalize(ctx.wo);
+    return emissionFromRGB(EvaluateGaussianRGB(cloud, ctx.faceIndex, viewDir));
+}
+
 template <typename TextureEvaluator>
 PBRT_CPU_GPU inline DiffuseBxDF GaussianMaterial::GetBxDF(TextureEvaluator,
-                                                          MaterialEvalContext ctx,
-                                                          SampledWavelengths &wl) const {
-    SampledSpectrum r =
-        EvaluateGaussianSH(cloud, ctx.faceIndex, Normalize(ctx.wo), wl);
-    return DiffuseBxDF(Clamp(r, 0, 1));
+                                                          MaterialEvalContext,
+                                                          SampledWavelengths &) const {
+    return DiffuseBxDF(SampledSpectrum(0.f));
 }
 
 }  // namespace pbrt

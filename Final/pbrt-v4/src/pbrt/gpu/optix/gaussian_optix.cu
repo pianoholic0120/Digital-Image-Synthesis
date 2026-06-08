@@ -5,6 +5,7 @@
 // Included from optix.cu — device programs for 3D Gaussian stochastic intersection.
 
 #include <pbrt/gpu/optix/optix.h>
+#include <pbrt/gaussian_eval.h>
 #include <pbrt/util/plyloader_3dgs.h>
 #include <pbrt/util/trighash.h>
 #include <pbrt/util/vecmath.h>
@@ -47,8 +48,8 @@ extern "C" __global__ void __intersection__gaussian() {
     if (mhd2 > rec.sigmaCutoff * rec.sigmaCutoff)
         return;
 
-    Float alpha = g.opacity * std::exp(-0.5f * mhd2);
-    if (alpha < 1e-4f)
+    Float alpha = std::min(g.opacity * std::exp(-0.5f * mhd2), kGaussianAlphaCap);
+    if (alpha < kGaussianAlphaMinThreshold)
         return;
 
     if (TrigHash(p, params.gaussianFrameNumber) >= alpha)

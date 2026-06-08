@@ -53,9 +53,24 @@ PBRT_CPU_GPU inline SampledSpectrum EvaluateSHColor(const Vector3f &viewDir,
         b += sh[i * 3 + 2] * basis[i];
     }
 
-    RGB rgb(Sigmoid(r + 0.5f), Sigmoid(g + 0.5f), Sigmoid(b + 0.5f));
-    RGBAlbedoSpectrum spec(*RGBColorSpace::sRGB, rgb);
-    return spec.Sample(lambda);
+    RGB rgb(std::max(r + 0.5f, 0.f), std::max(g + 0.5f, 0.f), std::max(b + 0.5f, 0.f));
+    RGBUnboundedSpectrum spec(*RGBColorSpace::sRGB, rgb);
+    return spec.Sample(lambda) * lambda.PDF();
+}
+
+PBRT_CPU_GPU inline RGB EvaluateSHRGB(const Vector3f &viewDir, const Float *sh,
+                                      int degree) {
+    Float basis[16] = {};
+    EvalSH3(Normalize(viewDir), basis);
+    int nCoeffs = SHNumCoeffs(degree);
+
+    Float r = 0, g = 0, b = 0;
+    for (int i = 0; i < nCoeffs; ++i) {
+        r += sh[i * 3 + 0] * basis[i];
+        g += sh[i * 3 + 1] * basis[i];
+        b += sh[i * 3 + 2] * basis[i];
+    }
+    return RGB(std::max(r + 0.5f, 0.f), std::max(g + 0.5f, 0.f), std::max(b + 0.5f, 0.f));
 }
 
 }  // namespace pbrt

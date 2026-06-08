@@ -656,6 +656,7 @@ SET (PBRT_UTIL_SOURCE
   src/pbrt/util/sobolmatrices.cpp
   src/pbrt/util/spectrum.cpp
   src/pbrt/util/stats.cpp
+  src/pbrt/util/trighash.cpp
   src/pbrt/util/stbimage.cpp
   src/pbrt/util/string.cpp
   src/pbrt/util/transform.cpp

@@ -12,9 +12,9 @@
 
 namespace pbrt {
 
-inline thread_local int GaussianFrameNumber = 0;
-
-inline void SetGaussianFrameNumber(int frame) { GaussianFrameNumber = frame; }
+// Storage in trighash.cpp (single TU) — avoids MSVC duplicating thread_local in headers.
+void SetGaussianFrameNumber(int frame);
+int GetGaussianFrameNumber();
 
 PBRT_CPU_GPU inline Float Frac(Float x) { return x - std::floor(x); }
 
