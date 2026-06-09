@@ -20,6 +20,17 @@ namespace pbrt {
 
 class Material;
 
+// Camera parameters for 2D Gaussian projection (rasterizer-compatible alpha).
+// rx/ry/rz are camera right / down (3DGS Y) / forward axes in world space
+// (i.e. columns 0, 1, 2 of the 3DGS C2W rotation matrix R).
+struct GaussianCameraParams {
+    Float fx = -1.f, fy = -1.f, cx = 0.f, cy = 0.f;
+    Vector3f rx, ry, rz;
+    Point3f pos;          // camera origin in world space
+    int width = 800, height = 800;
+    bool valid = false;
+};
+
 class GaussianCloud {
   public:
     enum class InternalAccel { BVH, KDTREE, BRUTE };
@@ -36,7 +47,8 @@ class GaussianCloud {
                   bool reverseOrientation, std::vector<Gaussian3D> gaussians,
                   Float sigmaCutoff, int shDegree, bool useCenterDepth,
                   InternalAccel internalAccel, SamplingMode samplingMode,
-                  int multiSamples, RGB backgroundColor, GaussianSHViewDir shViewDir);
+                  int multiSamples, RGB backgroundColor, GaussianSHViewDir shViewDir,
+                  GaussianCameraParams cameraParams);
 
     PBRT_CPU_GPU Bounds3f Bounds() const;
     PBRT_CPU_GPU DirectionCone NormalBounds() const { return DirectionCone::EntireSphere(); }
@@ -83,6 +95,10 @@ class GaussianCloud {
 
     void BuildBVH();
     void BuildKdTree();
+    // 2D tile grid for fast candidate lookup when cameraParams.valid.
+    // Tile cell (cx,cy) stores the indices of all Gaussians whose 2D projected
+    // bounding box overlaps the cell.
+    void Build2DGrid();
     pstd::optional<ShapeIntersection> IntersectStochastic(const Ray &objectRay,
                                                           Float tMax) const;
     pstd::optional<ShapeIntersection> IntersectComposite(const Ray &objectRay,
@@ -91,6 +107,20 @@ class GaussianCloud {
     pstd::optional<ShapeIntersection> IntersectKdTree(const Ray &objectRay, Float tMax) const;
 
     PBRT_CPU_GPU Float EvalIntersectionT(const Gaussian3D &g, const Ray &objectRay) const;
+    // OursMean depth: argmin_t mhd² along the ray (always used for alpha / cutoff).
+    PBRT_CPU_GPU static Float EvalMeanDepthT(const Gaussian3D &g, const Ray &objectRay);
+    PBRT_CPU_GPU Float EvalAlphaDepthT(const Gaussian3D &g, const Ray &objectRay) const;
+
+    struct GaussianAlphaEval {
+        Float tAlpha;
+        Float mhd2;
+        Float alpha;
+    };
+    PBRT_CPU_GPU GaussianAlphaEval EvalGaussianAlpha(const Gaussian3D &g,
+                                                     const Ray &objectRay) const;
+    // 2D-projection alpha (matches rasterizer) when cameraParams.valid == true.
+    PBRT_CPU_GPU GaussianAlphaEval EvalGaussianAlpha2D(const Gaussian3D &g,
+                                                       const Ray &objectRay) const;
 
     const Transform *renderFromObject, *objectFromRender;
     bool reverseOrientation;
@@ -102,6 +132,7 @@ class GaussianCloud {
     int multiSamples = 1;
     RGB backgroundColor;
     GaussianSHViewDir shViewDir = GaussianSHViewDir::CAM_TO_GAUSSIAN;
+    GaussianCameraParams cameraParams;
 
     std::vector<Gaussian3D> gaussians;
     Bounds3f bounds;
@@ -109,6 +140,11 @@ class GaussianCloud {
     std::vector<int> orderedIndices;
     std::vector<BVHNode> bvhNodes;
     std::vector<KdTreeNode> kdNodes;
+
+    // 2D tile grid (built when cameraParams.valid).
+    std::vector<std::vector<int>> grid2D;
+    int grid2DW = 0, grid2DH = 0;
+    static constexpr int kGrid2DCellSize = 16;
 
     Material boundMaterial;
 };

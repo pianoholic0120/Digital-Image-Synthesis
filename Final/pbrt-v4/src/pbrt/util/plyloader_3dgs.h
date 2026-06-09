@@ -21,6 +21,7 @@ struct Gaussian3D {
     Float sh[48];
 
     SquareMatrix<3> sigmaInv;
+    SquareMatrix<3> sigma;   // 3D covariance Σ = R diag(s²) Rᵀ (needed for 2D projection)
     Bounds3f aabb;
 };
 

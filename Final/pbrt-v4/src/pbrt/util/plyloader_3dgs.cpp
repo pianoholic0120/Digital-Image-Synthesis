@@ -10,6 +10,7 @@
 #include <pbrt/util/print.h>
 #include <pbrt/util/sphericalharmonics.h>
 
+#include <algorithm>
 #include <cctype>
 #include <fstream>
 #include <sstream>
@@ -47,6 +48,7 @@ void PrecomputeGaussian(Gaussian3D *g, Float sigmaCutoff) {
     pstd::optional<SquareMatrix<3>> sigmaInv = Inverse(sigma);
     if (!sigmaInv)
         ErrorExit("PrecomputeGaussian: singular covariance matrix.");
+    g->sigma    = sigma;
     g->sigmaInv = *sigmaInv;
     g->aabb = ComputeGaussianAABB(*g, sigmaCutoff);
 }
@@ -125,6 +127,7 @@ std::vector<Gaussian3D> Load3DGSPly(const std::string &filename, Float sigmaCuto
     std::vector<Gaussian3D> gaussians(vertexCount);
     std::vector<float> row(propCount);
 
+    // First pass: read all raw data into gaussians (without precompute).
     for (int v = 0; v < vertexCount; ++v) {
         in.read((char *)row.data(), propCount * sizeof(float));
         if (!in)
@@ -149,12 +152,61 @@ std::vector<Gaussian3D> Load3DGSPly(const std::string &filename, Float sigmaCuto
         g.sh[0] = row[dc0];
         g.sh[1] = row[dc1];
         g.sh[2] = row[dc2];
-        for (int i = 0; i < 45; ++i)
-            g.sh[3 + i] = row[restIdx[i]];
+        // PLY stores rest coefficients channel-first: all 15 R, then 15 G, then 15 B.
+        // EvaluateSHRGB expects interleaved RGB triples (sh[i*3+c]).
+        // Reorder here so indices match: sh[3 + k*3 + c] = rest coeff k for channel c.
+        for (int k = 0; k < 15; ++k) {
+            g.sh[3 + k * 3 + 0] = row[restIdx[k]];       // R channel, band index k
+            g.sh[3 + k * 3 + 1] = row[restIdx[15 + k]];  // G channel, band index k
+            g.sh[3 + k * 3 + 2] = row[restIdx[30 + k]];  // B channel, band index k
+        }
+    }
 
+    // ---------- Scale sanitisation ----------
+    // Two distinct failure modes require scale clamping:
+    //
+    // (1) DEGENERATE (near-zero) scales: a scale as small as 5e-7 makes
+    //     sigmaInv have entries of order 1e12.  Float32 loses precision and
+    //     the resulting sigmaInv ceases to be positive definite, yielding
+    //     mhd2 < 0.  Those Gaussians wrongly receive alpha=0.99 and produce
+    //     fireworks artifacts even on training views.
+    //     Fix: clamp each axis to kMinScale = 1e-4.
+    //
+    // (2) GIANT (floater) scales: a scale of 6.87 world-units makes the 3-D
+    //     Mahalanobis sphere enormous.  A background ray 5 units away in the
+    //     elongated direction has mhd2=0.53 (< threshold=8), so the Gaussian
+    //     contaminates most background pixels.
+    //     Fix: clamp each axis to 5× the 99th-percentile maximum scale.
+    static constexpr Float kMinScale = 1e-4f;
+
+    // Compute per-Gaussian maximum scale for percentile.
+    std::vector<Float> maxScales(vertexCount);
+    for (int v = 0; v < vertexCount; ++v)
+        maxScales[v] = std::max({gaussians[v].scale[0], gaussians[v].scale[1], gaussians[v].scale[2]});
+    std::vector<Float> sortedScales = maxScales;
+    std::sort(sortedScales.begin(), sortedScales.end());
+    Float p99MaxScale = sortedScales[std::max(0, int(sortedScales.size() * 0.99f) - 1)];
+    Float maxScaleLimit = std::max(p99MaxScale * 5.0f, kMinScale);
+
+    int nClampedMin = 0, nClampedMax = 0;
+    for (int v = 0; v < vertexCount; ++v) {
+        Gaussian3D &g = gaussians[v];
+        bool clampedMin = false, clampedMax = false;
+        for (int i = 0; i < 3; ++i) {
+            if (g.scale[i] < kMinScale) { g.scale[i] = kMinScale; clampedMin = true; }
+            if (g.scale[i] > maxScaleLimit) { g.scale[i] = maxScaleLimit; clampedMax = true; }
+        }
+        if (clampedMin) ++nClampedMin;
+        if (clampedMax) ++nClampedMax;
         PrecomputeGaussian(&g, sigmaCutoff);
     }
 
+    if (nClampedMin > 0)
+        LOG_VERBOSE("Min-clamped %d near-degenerate Gaussians (scale < %.1e) in %s",
+                    nClampedMin, kMinScale, path);
+    if (nClampedMax > 0)
+        LOG_VERBOSE("Max-clamped %d floater Gaussians (scale > %.4f, p99=%.4f) in %s",
+                    nClampedMax, maxScaleLimit, p99MaxScale, path);
     LOG_VERBOSE("Loaded %d 3D Gaussians from %s", vertexCount, path);
     return gaussians;
 }
