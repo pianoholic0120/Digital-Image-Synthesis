@@ -48,7 +48,7 @@ class GaussianCloud {
                   Float sigmaCutoff, int shDegree, bool useCenterDepth,
                   InternalAccel internalAccel, SamplingMode samplingMode,
                   int multiSamples, RGB backgroundColor, GaussianSHViewDir shViewDir,
-                  GaussianCameraParams cameraParams);
+                  GaussianCameraParams cameraParams, bool use2DAlpha);
 
     PBRT_CPU_GPU Bounds3f Bounds() const;
     PBRT_CPU_GPU DirectionCone NormalBounds() const { return DirectionCone::EntireSphere(); }
@@ -121,12 +121,16 @@ class GaussianCloud {
     // 2D-projection alpha (matches rasterizer) when cameraParams.valid == true.
     PBRT_CPU_GPU GaussianAlphaEval EvalGaussianAlpha2D(const Gaussian3D &g,
                                                        const Ray &objectRay) const;
+    // Rasterizer-aligned 2D alpha when enabled and camera params are present.
+    PBRT_CPU_GPU GaussianAlphaEval EvalAlphaForRay(const Gaussian3D &g,
+                                                   const Ray &objectRay) const;
 
     const Transform *renderFromObject, *objectFromRender;
     bool reverseOrientation;
     Float sigmaCutoff;
     int shDegree;
     bool useCenterDepth;
+    bool use2DAlpha = true;
     InternalAccel internalAccel;
     SamplingMode samplingMode = SamplingMode::STOCHASTIC;
     int multiSamples = 1;

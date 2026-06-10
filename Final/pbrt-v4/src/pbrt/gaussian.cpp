@@ -101,14 +101,26 @@ GaussianCloud *GaussianCloud::Create(const Transform *renderFromObject,
         camParams.height = parameters.GetOneInt("cam_height", 800);
     }
 
-    std::vector<Gaussian3D> gaussians = Load3DGSPly(filename, sigmaCutoff);
+    Float minOpacity = parameters.GetOneFloat("min_opacity", 0.f);
+    Float maxScalePercentile = parameters.GetOneFloat("max_scale_percentile", 5.f);
+    Float pruneOutlierDc = parameters.GetOneFloat("prune_outlier_dc", 0.f);
+    Float pruneOutlierDistFrac = parameters.GetOneFloat("prune_outlier_distance_frac", 0.85f);
+    bool use2DAlpha = parameters.GetOneBool("use_2d_alpha", true);
+
+    Load3DGSPlyOptions loadOpts;
+    loadOpts.sigmaCutoff = sigmaCutoff;
+    loadOpts.minOpacity = minOpacity;
+    loadOpts.maxScalePercentileFactor = maxScalePercentile;
+    loadOpts.pruneOutlierDcThreshold = pruneOutlierDc;
+    loadOpts.pruneOutlierDistanceFrac = pruneOutlierDistFrac;
+    std::vector<Gaussian3D> gaussians = Load3DGSPly(filename, loadOpts);
     if (gaussians.empty())
         ErrorExit(loc, "gaussiancloud: no Gaussians loaded from %s.", filename);
 
     auto *cloud = alloc.new_object<GaussianCloud>(
         renderFromObject, objectFromRender, reverseOrientation, std::move(gaussians),
         sigmaCutoff, shDegree, useCenterDepth, accel, samplingMode, multiSamples,
-        backgroundColor, shViewDir, camParams);
+        backgroundColor, shViewDir, camParams, use2DAlpha);
     ++nGaussianClouds;
     nGaussianPrimitives += cloud->NumGaussians();
     return cloud;
@@ -120,13 +132,14 @@ GaussianCloud::GaussianCloud(const Transform *renderFromObject,
                              int shDegree, bool useCenterDepth, InternalAccel internalAccel,
                              SamplingMode samplingMode, int multiSamples,
                              RGB backgroundColor, GaussianSHViewDir shViewDir,
-                             GaussianCameraParams cameraParams)
+                             GaussianCameraParams cameraParams, bool use2DAlpha)
     : renderFromObject(renderFromObject),
       objectFromRender(objectFromRender),
       reverseOrientation(reverseOrientation),
       sigmaCutoff(sigmaCutoff),
       shDegree(shDegree),
       useCenterDepth(useCenterDepth),
+      use2DAlpha(use2DAlpha),
       internalAccel(internalAccel),
       samplingMode(samplingMode),
       multiSamples(std::max(1, multiSamples)),
@@ -301,10 +314,10 @@ GaussianCloud::GaussianAlphaEval GaussianCloud::EvalGaussianAlpha2D(
     //   cameraParams.ry = camera-down    in world space  (R[:,1] of 3DGS C2W)
     //   cameraParams.rz = camera-forward in world space  (R[:,2] of 3DGS C2W)
 
-    // Gaussian centre in camera space
-    Vector3f mu_c = Vector3f(g.mu - objectRay.o);
+    // Gaussian centre in camera space (use stored cam origin, same as Build2DGrid).
+    Vector3f mu_c = Vector3f(g.mu - cameraParams.pos);
     Float z = Dot(cameraParams.rz, mu_c);
-    if (z <= 0.f)
+    if (z <= kGaussianNearPlaneZ)
         return {-1.f, sigmaCutoff * sigmaCutoff + 1.f, 0.f};
 
     Float inv_z  = 1.f / z;
@@ -355,13 +368,15 @@ GaussianCloud::GaussianAlphaEval GaussianCloud::EvalGaussianAlpha2D(
     Float mhd2_2D = (s11 * du * du - 2.f * s01 * du * dv + s00 * dv * dv) / det;
     if (mhd2_2D < 0.f) mhd2_2D = 0.f;
 
-    // Sort by projected centre depth (= t_center in OursCenter convention)
-    Float t = Dot(mu_c, d);
-    if (t <= 0.f)
-        return {-1.f, sigmaCutoff * sigmaCutoff + 1.f, 0.f};
-
     Float alpha = std::min(g.opacity * std::exp(-0.5f * mhd2_2D), kGaussianAlphaCap);
-    return {t, mhd2_2D, alpha};
+    return {z, mhd2_2D, alpha};
+}
+
+GaussianCloud::GaussianAlphaEval GaussianCloud::EvalAlphaForRay(const Gaussian3D &g,
+                                                                const Ray &objectRay) const {
+    if (use2DAlpha && cameraParams.valid)
+        return EvalGaussianAlpha2D(g, objectRay);
+    return EvalGaussianAlpha(g, objectRay);
 }
 
 void GaussianCloud::Build2DGrid() {
@@ -381,7 +396,7 @@ void GaussianCloud::Build2DGrid() {
         const Gaussian3D &g = gaussians[gi];
         Vector3f mu_c = Vector3f(g.mu - cameraParams.pos);
         Float z = Dot(cameraParams.rz, mu_c);
-        if (z <= 0.f) continue;
+        if (z <= kGaussianNearPlaneZ) continue;
 
         Float inv_z = 1.f / z;
         Float x_cam = Dot(cameraParams.rx, mu_c);
@@ -391,10 +406,28 @@ void GaussianCloud::Build2DGrid() {
 
         // Conservative 2D radius: sigmaCut * max_2D_scale.
         // max_2D_scale ≤ max(fx,fy) * max_3D_scale / z
-        Float max3DScale = std::max({g.scale[0], g.scale[1], g.scale[2]});
-        Float r2D = sigmaCut * std::max(fx, fy) * max3DScale * inv_z;
+        // Rasterizer-equivalent 2D covariance footprint (not the loose 3D-scale bound).
+        Float fx_z = fx * inv_z;
+        Float fy_z = fy * inv_z;
+        Vector3f J0 = fx_z * (cameraParams.rx - (x_cam * inv_z) * cameraParams.rz);
+        Vector3f J1 = fy_z * (cameraParams.ry - (y_cam * inv_z) * cameraParams.rz);
+        Vector3f SJ0 = g.sigma * J0;
+        Vector3f SJ1 = g.sigma * J1;
+        Float s00 = Dot(J0, SJ0) + 0.3f;
+        Float s01 = Dot(J0, SJ1);
+        Float s11 = Dot(J1, SJ1) + 0.3f;
+        Float det = s00 * s11 - s01 * s01;
+        Float r2D;
+        if (det < 1e-10f) {
+            Float max3DScale = std::max({g.scale[0], g.scale[1], g.scale[2]});
+            r2D = sigmaCut * std::max(fx, fy) * max3DScale * inv_z;
+        } else {
+            Float trace = s00 + s11;
+            Float disc = std::sqrt(std::max(0.f, (s00 - s11) * (s00 - s11) + 4.f * s01 * s01));
+            Float lambdaMax = 0.5f * (trace + disc);
+            r2D = sigmaCut * std::sqrt(lambdaMax);
+        }
 
-        // Pixel bounding box with 1-cell margin
         int xMin = std::max(0, int((u - r2D) / kGrid2DCellSize));
         int xMax = std::min(grid2DW - 1, int((u + r2D) / kGrid2DCellSize));
         int yMin = std::max(0, int((v - r2D) / kGrid2DCellSize));
@@ -570,7 +603,10 @@ void GaussianCloud::BuildKdTree() {
 }
 
 Bounds3f GaussianCloud::Bounds() const {
-    if (samplingMode == SamplingMode::COMPOSITE && HasVisibleBackground(backgroundColor)) {
+    // Composite and stochastic both need a catch-all bound when the scene uses a
+    // visible background: otherwise primary rays over empty pixels never hit this
+    // shape and IntersectComposite / StochasticMissResult never runs.
+    if (HasVisibleBackground(backgroundColor)) {
         Bounds3f expanded = Union(
             bounds, Bounds3f(Point3f(-1e4f, -1e4f, -1e4f), Point3f(1e4f, 1e4f, 1e4f)));
         return (*renderFromObject)(expanded);
@@ -630,7 +666,7 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectComposite(const Ray &o
     std::vector<Candidate> candidates;
     candidates.reserve(256);
 
-    const bool use2D = cameraParams.valid;
+    const bool use2D = use2DAlpha && cameraParams.valid;
 
     auto testGaussian = [&](int gIndex) {
         const Gaussian3D &g = gaussians[gIndex];
@@ -642,8 +678,7 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectComposite(const Ray &o
         if (!use2D && !g.aabb.IntersectP(objectRay.o, objectRay.d, tMax))
             return;
 
-        GaussianAlphaEval eval = use2D ? EvalGaussianAlpha2D(g, objectRay)
-                                       : EvalGaussianAlpha(g, objectRay);
+        GaussianAlphaEval eval = EvalAlphaForRay(g, objectRay);
         Float t = eval.tAlpha;
         if (t <= 0.f || t >= tMax)
             return;
@@ -657,8 +692,6 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectComposite(const Ray &o
     };
 
     if (use2D) {
-        // 2D projection: look up the tile grid instead of iterating all Gaussians.
-        // Recover the pixel addressed by this ray.
         Vector3f d = Normalize(objectRay.d);
         Float dz = Dot(cameraParams.rz, d);
         if (std::abs(dz) > 1e-8f) {
@@ -667,8 +700,7 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectComposite(const Ray &o
             Float py = cameraParams.fy * Dot(cameraParams.ry, d) * inv_dz + cameraParams.cy;
             int cx_cell = std::max(0, std::min(grid2DW - 1, int(px / kGrid2DCellSize)));
             int cy_cell = std::max(0, std::min(grid2DH - 1, int(py / kGrid2DCellSize)));
-            const auto &cell = grid2D[cy_cell * grid2DW + cx_cell];
-            for (int gIndex : cell)
+            for (int gIndex : grid2D[cy_cell * grid2DW + cx_cell])
                 testGaussian(gIndex);
         }
     } else if (internalAccel == InternalAccel::BRUTE) {
@@ -853,6 +885,7 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectBVH(const Ray &objectR
     if (bvhNodes.empty() && !canUse2DGrid)
         return {};
 
+    const bool use2DSort = use2DAlpha && cameraParams.valid;
     const int N = std::max(1, multiSamples);
     // Paper §3.5 / Table 5: up to 64 independent RR slots per BVH traversal.
     static constexpr int kMaxMultiSamples = 64;
@@ -887,7 +920,9 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectBVH(const Ray &objectR
         if (t <= 0.f)
             return;
 
-        GaussianAlphaEval eval = EvalGaussianAlpha(g, objectRay);
+        GaussianAlphaEval eval = EvalAlphaForRay(g, objectRay);
+        if (eval.tAlpha <= 0.f)
+            return;
         if (eval.mhd2 > sigmaCutoff * sigmaCutoff)
             return;
         if (eval.alpha < kGaussianAlphaMinThreshold)
@@ -895,11 +930,12 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectBVH(const Ray &objectR
 
         Point3f p = objectRay(t);
         Vector3f viewDir = GaussianSHViewDirection(shViewDir, g.mu, objectRay);
+        const bool skipAABB = use2DSort;
         for (int s = 0; s < N; ++s) {
             Slot &slot = slots[s];
             if (t >= slot.currentTMax)
                 continue;
-            if (!g.aabb.IntersectP(objectRay.o, objectRay.d, slot.currentTMax))
+            if (!skipAABB && !g.aabb.IntersectP(objectRay.o, objectRay.d, slot.currentTMax))
                 continue;
             if (TrigHash(p, frameNum * N + s) >= eval.alpha)
                 continue;
@@ -967,9 +1003,19 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectBVH(const Ray &objectR
             std::vector<std::pair<Float, int>> ordered;
             ordered.reserve(cell.size());
             for (int gIndex : cell) {
-                Float t = EvalIntersectionT(gaussians[gIndex], objectRay);
-                if (t > 0.f && t < tMax)
-                    ordered.emplace_back(t, gIndex);
+                Float sortKey;
+                if (use2DSort) {
+                    // 3DGS tile sort: view-space forward depth (matches IntersectComposite).
+                    Vector3f mu_c = Vector3f(gaussians[gIndex].mu - cameraParams.pos);
+                    sortKey = Dot(cameraParams.rz, mu_c);
+                    if (sortKey <= kGaussianNearPlaneZ)
+                        continue;
+                } else {
+                    sortKey = EvalIntersectionT(gaussians[gIndex], objectRay);
+                    if (sortKey <= 0.f || sortKey >= tMax)
+                        continue;
+                }
+                ordered.emplace_back(sortKey, gIndex);
             }
             std::sort(ordered.begin(), ordered.end());
             for (const auto &entry : ordered)
@@ -1023,6 +1069,7 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectKdTree(const Ray &obje
         return {};
 
     const int N = std::max(1, multiSamples);
+    const bool use2DSort = use2DAlpha && cameraParams.valid;
     static constexpr int kMaxMultiSamples = 64;
     struct Slot {
         Float currentTMax;
@@ -1053,7 +1100,9 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectKdTree(const Ray &obje
         if (t <= 0.f)
             return;
 
-        GaussianAlphaEval eval = EvalGaussianAlpha(g, objectRay);
+        GaussianAlphaEval eval = EvalAlphaForRay(g, objectRay);
+        if (eval.tAlpha <= 0.f)
+            return;
         if (eval.mhd2 > sigmaCutoff * sigmaCutoff)
             return;
         if (eval.alpha < kGaussianAlphaMinThreshold)
@@ -1061,11 +1110,12 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectKdTree(const Ray &obje
 
         Point3f p = objectRay(t);
         Vector3f viewDir = GaussianSHViewDirection(shViewDir, g.mu, objectRay);
+        const bool skipAABB = use2DSort;
         for (int s = 0; s < N; ++s) {
             Slot &slot = slots[s];
             if (t >= slot.currentTMax)
                 continue;
-            if (!g.aabb.IntersectP(objectRay.o, objectRay.d, slot.currentTMax))
+            if (!skipAABB && !g.aabb.IntersectP(objectRay.o, objectRay.d, slot.currentTMax))
                 continue;
             if (TrigHash(p, frameNum * N + s) >= eval.alpha)
                 continue;

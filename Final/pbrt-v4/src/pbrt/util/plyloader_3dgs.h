@@ -25,7 +25,22 @@ struct Gaussian3D {
     Bounds3f aabb;
 };
 
+// Load-time filters mirroring 3DGS training / rasterizer behaviour.
+struct Load3DGSPlyOptions {
+    Float sigmaCutoff = 2.828f;
+    // Drop Gaussians below this opacity (0 = keep all).  1/255 matches rasterizer alpha cutoff.
+    Float minOpacity = 0.f;
+    // Clamp per-axis scale to percentile × this factor (default 5, same as before).
+    Float maxScalePercentileFactor = 5.f;
+    // Remove distant Gaussians with extreme SH DC (0 = off).  Targets edge floaters without retraining.
+    Float pruneOutlierDcThreshold = 0.f;
+    // Distance percentile (0–1) paired with pruneOutlierDcThreshold; default 0.85.
+    Float pruneOutlierDistanceFrac = 0.85f;
+};
+
 std::vector<Gaussian3D> Load3DGSPly(const std::string &filename, Float sigmaCutoff);
+std::vector<Gaussian3D> Load3DGSPly(const std::string &filename,
+                                    const Load3DGSPlyOptions &options);
 
 void PrecomputeGaussian(Gaussian3D *g, Float sigmaCutoff);
 

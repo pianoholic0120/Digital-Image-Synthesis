@@ -21,6 +21,8 @@ inline constexpr int kGaussianMultiSampleFaceIndex = -3;
 inline constexpr int kGaussianBackgroundFaceIndex = -4;
 inline constexpr Float kGaussianAlphaMinThreshold = 1.f / 255.f;
 inline constexpr Float kGaussianAlphaCap = 0.99f;
+// Kerbl 3DGS rasterizer frustum cull: p_view.z must exceed this.
+inline constexpr Float kGaussianNearPlaneZ = 0.2f;
 
 // When set, RayIntegrator writes this sRGB-linear display RGB directly to RGBFilm.
 // Storage lives in gaussian.cpp (one TU) so MSVC does not duplicate thread_local.

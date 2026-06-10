@@ -4,5 +4,31 @@
 src/build
 .DS_Store
 .ipynb_checkpoints/
-*build*/
 .cache/
+
+# Build outputs (root .gitignore also covers Final/pbrt-v4/build*)
+*build*/
+
+# Render / benchmark outputs
+renders/
+results/
+
+# Debug / trace logs
+*.log
+trace_*.log
+malformed.txt
+
+# Large scene assets (PLY etc.; root .gitignore also has **/*.ply)
+scenes/assets/
+
+# Auto-generated scene files (regenerate via scripts/)
+scenes/benchmark/
+scenes/tandt_db/
+scenes/3dgs/_*
+scenes/3dgs/_bvh_validate/
+scenes/3dgs/quick_test_*
+scenes/3dgs/mode_test_*
+scenes/3dgs/trace_test.pbrt
+
+# Python cache under scripts (keep .py source tracked)
+scripts/__pycache__/

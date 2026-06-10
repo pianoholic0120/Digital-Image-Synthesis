@@ -54,6 +54,14 @@ void PrecomputeGaussian(Gaussian3D *g, Float sigmaCutoff) {
 }
 
 std::vector<Gaussian3D> Load3DGSPly(const std::string &filename, Float sigmaCutoff) {
+    Load3DGSPlyOptions options;
+    options.sigmaCutoff = sigmaCutoff;
+    return Load3DGSPly(filename, options);
+}
+
+std::vector<Gaussian3D> Load3DGSPly(const std::string &filename,
+                                    const Load3DGSPlyOptions &options) {
+    Float sigmaCutoff = options.sigmaCutoff;
     std::string path = ResolveFilename(filename);
     std::ifstream in(path, std::ios::binary);
     if (!in)
@@ -186,7 +194,8 @@ std::vector<Gaussian3D> Load3DGSPly(const std::string &filename, Float sigmaCuto
     std::vector<Float> sortedScales = maxScales;
     std::sort(sortedScales.begin(), sortedScales.end());
     Float p99MaxScale = sortedScales[std::max(0, int(sortedScales.size() * 0.99f) - 1)];
-    Float maxScaleLimit = std::max(p99MaxScale * 5.0f, kMinScale);
+    Float maxScaleLimit =
+        std::max(p99MaxScale * std::max(options.maxScalePercentileFactor, 1.f), kMinScale);
 
     int nClampedMin = 0, nClampedMax = 0;
     for (int v = 0; v < vertexCount; ++v) {
@@ -201,13 +210,59 @@ std::vector<Gaussian3D> Load3DGSPly(const std::string &filename, Float sigmaCuto
         PrecomputeGaussian(&g, sigmaCutoff);
     }
 
+    if (options.minOpacity > 0.f) {
+        size_t before = gaussians.size();
+        gaussians.erase(
+            std::remove_if(gaussians.begin(), gaussians.end(),
+                           [&](const Gaussian3D &g) { return g.opacity < options.minOpacity; }),
+            gaussians.end());
+        size_t pruned = before - gaussians.size();
+        if (pruned > 0)
+            LOG_VERBOSE("Opacity-pruned %zu / %zu Gaussians (opacity < %.4f) in %s", pruned,
+                        before, options.minOpacity, path);
+    }
+
+    if (options.pruneOutlierDcThreshold > 0.f && !gaussians.empty()) {
+        Point3f centroid(0, 0, 0);
+        for (const Gaussian3D &g : gaussians)
+            centroid += g.mu;
+        centroid /= Float(gaussians.size());
+
+        std::vector<Float> distances(gaussians.size());
+        for (size_t i = 0; i < gaussians.size(); ++i)
+            distances[i] = Distance(gaussians[i].mu, centroid);
+
+        std::vector<Float> sortedDist = distances;
+        std::sort(sortedDist.begin(), sortedDist.end());
+        Float frac = Clamp(options.pruneOutlierDistanceFrac, 0.f, 1.f);
+        int distIdx = std::min(int(sortedDist.size()) - 1,
+                               std::max(0, int(frac * sortedDist.size()) - 1));
+        Float distThreshold = sortedDist[distIdx];
+        Float dcTh = options.pruneOutlierDcThreshold;
+
+        size_t before = gaussians.size();
+        gaussians.erase(
+            std::remove_if(gaussians.begin(), gaussians.end(),
+                           [&](const Gaussian3D &g) {
+                               Float maxDc = std::max({std::abs(g.sh[0]), std::abs(g.sh[1]),
+                                                     std::abs(g.sh[2])});
+                               return maxDc > dcTh && Distance(g.mu, centroid) > distThreshold;
+                           }),
+            gaussians.end());
+        size_t pruned = before - gaussians.size();
+        if (pruned > 0)
+            LOG_VERBOSE(
+                "Outlier-pruned %zu / %zu Gaussians (|f_dc|>%.2f and dist>%.4f) in %s", pruned,
+                before, dcTh, distThreshold, path);
+    }
+
     if (nClampedMin > 0)
         LOG_VERBOSE("Min-clamped %d near-degenerate Gaussians (scale < %.1e) in %s",
                     nClampedMin, kMinScale, path);
     if (nClampedMax > 0)
         LOG_VERBOSE("Max-clamped %d floater Gaussians (scale > %.4f, p99=%.4f) in %s",
                     nClampedMax, maxScaleLimit, p99MaxScale, path);
-    LOG_VERBOSE("Loaded %d 3D Gaussians from %s", vertexCount, path);
+    LOG_VERBOSE("Loaded %d 3D Gaussians from %s", int(gaussians.size()), path);
     return gaussians;
 }
 

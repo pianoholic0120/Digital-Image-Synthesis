@@ -4,6 +4,24 @@ Icon?
 
 # Build output (不 commit 編譯產物)
 pbrt-v4/build/
+Final/pbrt-v4/build/
+Final/pbrt-v4/build-gpu/
+
+# Large 3DGS assets (use scripts/setup_lego_assets.ps1)
+Final/pbrt-v4/scenes/assets/**/*.ply
+
+# Render outputs
+*.exr
+Final/pbrt-v4/renders/
+
+# gaussian-splatting: ignore build/training outputs (source is committed)
+Final/gaussian-splatting/output/
+Final/gaussian-splatting/**/__pycache__/
+Final/gaussian-splatting/**/*.egg-info/
+Final/gaussian-splatting/**/build/
+Final/gaussian-splatting/**/dist/
+Final/gaussian-splatting/tensorboard_3d/
+Final/gaussian-splatting/screenshots/
 
 # raytracing 書本 HTML release (整個 repo 可以用 submodule 管理，或視需要加)
 # 若要 commit 則移除下一行

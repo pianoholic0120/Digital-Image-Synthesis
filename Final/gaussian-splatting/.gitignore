@@ -1,0 +1,26 @@
+# Python
+*.pyc
+*.pyo
+__pycache__/
+*.egg-info/
+.eggs/
+dist/
+*.so
+*.pyd
+
+# IDE
+.vscode/
+
+# Training / render outputs
+output/
+tensorboard_3d/
+screenshots/
+
+# Native / CUDA build artifacts (top-level and submodules)
+build/
+**/build/
+**/dist/
+
+# Legacy paths from older layouts
+diff_rasterization/diff_rast.egg-info
+diff_rasterization/dist
