@@ -1,12 +1,11 @@
-# Paper Alg. 1 (stochastic) — primary lego validation scene (NeRF frame 0)
-# OursMean (use_center_depth false) matches 3D along-ray alpha for this asset.
+# High-SPP stochastic (Fig. 6 convergence / final quality)
 
 Film "rgb"
-    "string filename" ["lego_3dgs.exr"]
+    "string filename" ["lego_3dgs_stochastic.exr"]
     "integer xresolution" [800] "integer yresolution" [800]
 
 Sampler "halton"
-    "integer pixelsamples" [64]
+    "integer pixelsamples" [256]
 
 Integrator "path"
 
@@ -34,4 +33,5 @@ AttributeBegin
         "string sampling_mode" ["stochastic"]
         "string internal_accel" ["bvh"]
         "integer multi_samples" [1]
+        "rgb background" [0 0 0]
 AttributeEnd

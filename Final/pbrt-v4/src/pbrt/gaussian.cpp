@@ -1140,6 +1140,70 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectKdTree(const Ray &obje
         }
     };
 
+    auto finalizeStochastic = [&]() -> pstd::optional<ShapeIntersection> {
+        if (N == 1) {
+            if (slots[0].best)
+                return slots[0].best;
+            return StochasticMissResult(objectRay, tMax, backgroundColor, boundMaterial);
+        }
+
+        const bool visibleBg = HasVisibleBackground(backgroundColor);
+        RGB sum(0.f, 0.f, 0.f);
+        int hits = 0;
+        for (int i = 0; i < N; ++i) {
+            const Slot &slot = slots[i];
+            if (slot.best) {
+                const SurfaceInteraction &intr = slot.best->intr;
+                sum += EvaluateGaussianRGB(this, intr.faceIndex, Normalize(intr.shading.dpdu));
+                ++hits;
+            } else if (visibleBg) {
+                sum += backgroundColor;
+            }
+        }
+        if (hits == 0 && !visibleBg)
+            return StochasticMissResult(objectRay, tMax, backgroundColor, boundMaterial);
+
+        RGB avg = sum / Float(N);
+        return CreateDisplayRGBHit(objectRay, tMax, avg, kGaussianMultiSampleFaceIndex,
+                                   boundMaterial);
+    };
+
+    // Same 2D tile-grid fast path as IntersectBVH (required when use_2d_alpha is on).
+    const bool canUse2DGrid = cameraParams.valid && !grid2D.empty();
+    if (canUse2DGrid) {
+        Vector3f d = Normalize(objectRay.d);
+        Float dz = Dot(cameraParams.rz, d);
+        if (std::abs(dz) > 1e-8f) {
+            Float inv_dz = 1.f / dz;
+            Float px = cameraParams.fx * Dot(cameraParams.rx, d) * inv_dz + cameraParams.cx;
+            Float py = cameraParams.fy * Dot(cameraParams.ry, d) * inv_dz + cameraParams.cy;
+            int cx_cell = std::max(0, std::min(grid2DW - 1, int(px / kGrid2DCellSize)));
+            int cy_cell = std::max(0, std::min(grid2DH - 1, int(py / kGrid2DCellSize)));
+            const auto &cell = grid2D[cy_cell * grid2DW + cx_cell];
+
+            std::vector<std::pair<Float, int>> ordered;
+            ordered.reserve(cell.size());
+            for (int gIndex : cell) {
+                Float sortKey;
+                if (use2DSort) {
+                    Vector3f mu_c = Vector3f(gaussians[gIndex].mu - cameraParams.pos);
+                    sortKey = Dot(cameraParams.rz, mu_c);
+                    if (sortKey <= kGaussianNearPlaneZ)
+                        continue;
+                } else {
+                    sortKey = EvalIntersectionT(gaussians[gIndex], objectRay);
+                    if (sortKey <= 0.f || sortKey >= tMax)
+                        continue;
+                }
+                ordered.emplace_back(sortKey, gIndex);
+            }
+            std::sort(ordered.begin(), ordered.end());
+            for (const auto &entry : ordered)
+                testGaussian(entry.second);
+            return finalizeStochastic();
+        }
+    }
+
     struct StackEntry {
         int node;
         Float tMin;
@@ -1183,31 +1247,7 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectKdTree(const Ray &obje
         if (stackTop < kStackSize)
             stack[stackTop++] = {nearChild, tMin, std::min(nodeTMax, tPlane)};
     }
-    if (N == 1) {
-        if (slots[0].best)
-            return slots[0].best;
-        return StochasticMissResult(objectRay, tMax, backgroundColor, boundMaterial);
-    }
-
-    const bool visibleBg = HasVisibleBackground(backgroundColor);
-    RGB sum(0.f, 0.f, 0.f);
-    int hits = 0;
-    for (int i = 0; i < N; ++i) {
-        const Slot &slot = slots[i];
-        if (slot.best) {
-            const SurfaceInteraction &intr = slot.best->intr;
-            sum += EvaluateGaussianRGB(this, intr.faceIndex, Normalize(intr.shading.dpdu));
-            ++hits;
-        } else if (visibleBg) {
-            sum += backgroundColor;
-        }
-    }
-    if (hits == 0 && !visibleBg)
-        return StochasticMissResult(objectRay, tMax, backgroundColor, boundMaterial);
-
-    RGB avg = sum / Float(N);
-    return CreateDisplayRGBHit(objectRay, tMax, avg, kGaussianMultiSampleFaceIndex,
-                               boundMaterial);
+    return finalizeStochastic();
 }
 
 std::string GaussianCloud::ToString() const {

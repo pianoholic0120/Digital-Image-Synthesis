@@ -1,18 +1,15 @@
-# Paper Alg. 1 (stochastic) — primary lego validation scene (NeRF frame 0)
-# OursMean (use_center_depth false) matches 3D along-ray alpha for this asset.
-
 Film "rgb"
-    "string filename" ["lego_3dgs.exr"]
+    "string filename" ["renders/3dgs/lego_validate_bvh_f00000.exr"]
     "integer xresolution" [800] "integer yresolution" [800]
 
 Sampler "halton"
-    "integer pixelsamples" [64]
+    "integer pixelsamples" [1]
 
 Integrator "path"
 
 Accelerator "bvh"
 
-LookAt 0 2.737260103225708 2.959291696548462  0 2.0582295060157776 2.225181818008423  0 -0.7341099977493286 0.6790306568145752
+LookAt -0.000000000 2.737260103 2.959291697  -0.000000000 2.058229446 2.225181818  -0.000000000 -0.734109998 0.679030597
 Camera "perspective"
     "float fov" [39.597755335771296]
 
@@ -27,11 +24,12 @@ AttributeBegin
         "integer sh_degree" [3]
         "float emission_scale" [1.0]
     Shape "gaussiancloud"
-        "string filename" ["assets/lego/point_cloud.ply"]
+        "string filename" ["../assets/3dgs/lego/point_cloud/iteration_30000/point_cloud.ply"]
         "float sigma_cutoff" [2.828]
         "integer sh_degree" [3]
-        "bool use_center_depth" [false]
-        "string sampling_mode" ["stochastic"]
+        "bool use_center_depth" [true]
+        "string sampling_mode" ["composite"]
         "string internal_accel" ["bvh"]
         "integer multi_samples" [1]
+        "rgb background" [1 1 1]
 AttributeEnd

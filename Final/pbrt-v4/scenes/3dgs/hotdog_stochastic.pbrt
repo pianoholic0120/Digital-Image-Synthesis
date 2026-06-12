@@ -1,0 +1,53 @@
+# Auto-generated from assets/3dgs/hotdog frame 0 (stochastic)
+# GT: assets/3dgs/hotdog/test/ours_30000/composited/gt/00000.png
+
+Film "rgb"
+    "string filename" ["renders/3dgs/hotdog_stochastic_f00000.exr"]
+    "integer xresolution" [800] "integer yresolution" [800]
+
+Sampler "halton"
+    "integer pixelsamples" [1]
+
+Integrator "path"
+
+Accelerator "bvh"
+
+Transform [-1.000000000 -0.000000000 -0.000000000 0.000000000 -0.000000000 -0.734109881 -0.679030604 0.000000000 -0.000000000 0.679030604 -0.734109941 0.000000000 -0.000000000 0.000000061 4.031128832 1.000000000]
+Camera "perspective"
+    "float fov" [39.597755335771296]
+
+WorldBegin
+
+Material "gaussian"
+    "integer sh_degree" [3]
+    "float emission_scale" [1.0]
+
+AttributeBegin
+    Material "gaussian"
+        "integer sh_degree" [3]
+        "float emission_scale" [1.0]
+    Shape "gaussiancloud"
+        "string filename" ["../assets/3dgs/hotdog/point_cloud/iteration_30000/point_cloud.ply"]
+        "float sigma_cutoff" [2.828]
+        "integer sh_degree" [3]
+        "bool use_center_depth" [false]
+        "string sampling_mode" ["stochastic"]
+        "string internal_accel" ["bvh"]
+        "integer multi_samples" [64]
+        "bool use_2d_alpha" [true]
+        "float min_opacity" [0.008]
+        "float max_scale_percentile" [2.8]
+        "float prune_outlier_dc" [3.8]
+        "float prune_outlier_distance_frac" [0.84]
+        "rgb background" [1 1 1]
+        "float cam_fx" [1111.111031]
+        "float cam_fy" [1111.111031]
+        "float cam_cx" [400.000000]
+        "float cam_cy" [400.000000]
+        "float cam_rx" [-1.000000000 0.000000000 -0.000000000]
+        "float cam_ry" [-0.000000000 0.734109998 -0.679030657]
+        "float cam_rz" [-0.000000000 -0.679030657 -0.734109938]
+        "float cam_pos" [-0.000000000 2.737260103 2.959291697]
+        "integer cam_width" [800]
+        "integer cam_height" [800]
+AttributeEnd

@@ -1,11 +1,11 @@
-# Depth-of-field test with 3DGS foreground
+# Depth-of-field: 3DGS foreground + diffuse background (paper Fig. 5)
 
 Film "rgb"
     "string filename" ["dof_scene.exr"]
     "integer xresolution" [800] "integer yresolution" [800]
 
 Sampler "halton"
-    "integer pixelsamples" [128]
+    "integer pixelsamples" [64]
 
 Integrator "path"
 
@@ -19,32 +19,39 @@ Camera "perspective"
 
 WorldBegin
 
-Material "diffuse" "gray"
-    "rgb reflectance" [0.5 0.5 0.5]
-Material "gaussian" "gsmat"
+MakeNamedMaterial "white"
+    "string type" ["diffuse"]
+    "rgb reflectance" [0.75 0.75 0.75]
+MakeNamedMaterial "gsmat"
+    "string type" ["gaussian"]
     "integer sh_degree" [3]
 
-# Background spheres
 AttributeBegin
-    Material "gray"
-    Translate -1.5 0.5 -2
-    Shape "sphere" "float radius" [0.5]
-AttributeEnd
-AttributeBegin
-    Material "gray"
-    Translate 1.5 0.5 -2
-    Shape "sphere" "float radius" [0.5]
+    NamedMaterial "white"
+    Shape "sphere"
+        "float radius" [0.35]
+        "point3 center" [0.8 0.35 0.3]
 AttributeEnd
 
-# Foreground 3DGS
 AttributeBegin
-    Material "gsmat"
+    NamedMaterial "white"
+    Shape "sphere"
+        "float radius" [0.45]
+        "point3 center" [-0.7 0.4 -0.4]
+AttributeEnd
+
+AttributeBegin
+    NamedMaterial "gsmat"
     Translate 0 0.5 0
     Shape "gaussiancloud"
         "string filename" ["assets/lego/point_cloud.ply"]
         "float sigma_cutoff" [2.828]
+        "integer sh_degree" [3]
+        "bool use_center_depth" [false]
+        "string sampling_mode" ["stochastic"]
+        "string internal_accel" ["bvh"]
 AttributeEnd
 
-LightSource "distant"
-    "rgb scale" [3 3 3]
-    "vector3 direction" [0.3 -1 -0.2]
+LightSource "infinite"
+    "rgb L" [1 1 1]
+    "float scale" [1.5]

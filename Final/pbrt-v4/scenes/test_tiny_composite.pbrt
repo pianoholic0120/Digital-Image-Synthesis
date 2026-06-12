@@ -1,0 +1,27 @@
+Film "rgb"
+    "string filename" ["test_tiny_composite.exr"]
+    "integer xresolution" [100] "integer yresolution" [100]
+
+Sampler "halton"
+    "integer pixelsamples" [1]
+
+Integrator "path"
+
+Accelerator "bvh"
+
+LookAt 0 0 -3  0 0 0  0 1 0
+Camera "perspective"
+    "float fov" [45]
+
+WorldBegin
+
+Material "gaussian"
+    "integer sh_degree" [0]
+
+Shape "gaussiancloud"
+    "string filename" ["assets/test/tiny.ply"]
+    "float sigma_cutoff" [2.828]
+    "integer sh_degree" [0]
+    "bool use_center_depth" [false]
+    "string sampling_mode" ["composite"]
+    "rgb background" [0 0 0]

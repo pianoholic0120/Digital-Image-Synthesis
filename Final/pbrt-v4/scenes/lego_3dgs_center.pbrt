@@ -1,8 +1,7 @@
-# Paper Alg. 1 (stochastic) — primary lego validation scene (NeRF frame 0)
-# OursMean (use_center_depth false) matches 3D along-ray alpha for this asset.
+# Ablation: OursCenter (Sec 3.1 / 4.1) — depth = center projection onto ray
 
 Film "rgb"
-    "string filename" ["lego_3dgs.exr"]
+    "string filename" ["lego_3dgs_center.exr"]
     "integer xresolution" [800] "integer yresolution" [800]
 
 Sampler "halton"
@@ -20,18 +19,15 @@ WorldBegin
 
 Material "gaussian"
     "integer sh_degree" [3]
-    "float emission_scale" [1.0]
 
 AttributeBegin
     Material "gaussian"
         "integer sh_degree" [3]
-        "float emission_scale" [1.0]
     Shape "gaussiancloud"
         "string filename" ["assets/lego/point_cloud.ply"]
         "float sigma_cutoff" [2.828]
         "integer sh_degree" [3]
-        "bool use_center_depth" [false]
+        "bool use_center_depth" [true]
         "string sampling_mode" ["stochastic"]
         "string internal_accel" ["bvh"]
-        "integer multi_samples" [1]
 AttributeEnd

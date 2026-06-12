@@ -1,0 +1,22 @@
+Film "rgb"
+    "string filename" ["renders/quick_tandt_db_playroom_f000.exr"]
+    "integer xresolution" [316] "integer yresolution" [208]
+Sampler "halton" "integer pixelsamples" [1]
+Integrator "path"
+Accelerator "bvh"
+LookAt 3.140433964 0.181881980 -3.563482534  3.077637000 -0.306137089 -2.692911497  -0.011462677 -0.871882448 -0.489581049
+Camera "perspective"
+    "float fov" [43.59549644014618]
+WorldBegin
+AttributeBegin
+    Material "gaussian" "integer sh_degree" [3] "float emission_scale" [1.0]
+    Shape "gaussiancloud"
+        "string filename" ["../assets/tandt_db/playroom/point_cloud/iteration_30000/point_cloud.ply"]
+        "float sigma_cutoff" [2.828]
+        "integer sh_degree" [3]
+        "bool use_center_depth" [true]
+        "string sampling_mode" ["composite"]
+        "string internal_accel" ["bvh"]
+        "integer multi_samples" [1]
+        "rgb background" [0 0 0]
+AttributeEnd
