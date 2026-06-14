@@ -1,45 +1,72 @@
 # Final Project — Stochastic 3D Gaussian Ray Tracing in PBRT v4
 
-Course final implementation extending **PBRT v4** with **3D Gaussian Splatting (3DGS)** as a first-class shape/material, supporting CPU path tracing and optional **OptiX GPU** rendering, plus experiment scripts for ablation studies.
+CPU implementation of [*Stochastic Ray Tracing of Transparent 3D Gaussians*](https://arxiv.org/abs/2504.06598) (Sun, Georgiev, Fei, Hašan; EGSR 2025) in **PBRT v4**: load trained 3DGS `point_cloud.ply`, stochastically intersect Gaussians along rays, shade with spherical harmonics, and compare against an exact composite reference and the 3DGS rasterizer.
 
-Implementation plan and paper alignment: [`plan.md`](plan.md).
-
----
-
-## Directory layout
-
-```
-Final/
-├── README.md                 ← this file
-├── plan.md                   ← design doc, experiments, task list
-└── pbrt-v4/                  ← modified PBRT v4 + 3DGS extension
-    ├── src/pbrt/             ← C++/CUDA core (gaussian, materials, OptiX)
-    ├── scenes/               ← .pbrt scenes + assets/
-    │   └── assets/lego/point_cloud.ply
-    ├── gt/                   ← optional reference images for PSNR
-    ├── scripts/              ← ablation, SPP sweep, plotting, asset setup
-    ├── tools/                ← GPU build scripts
-    ├── build/                ← CPU Release build (local)
-    └── build-gpu/            ← OptiX build (local)
-```
+All benchmarks and figures in this repo use the **CPU** path integrator only.
 
 ---
 
-## What this project does
+## Core results
 
-1. **Loads** standard 3DGS `point_cloud.ply` (binary, SH degree 3).
-2. **Builds** an internal BVH/Kd-tree over Gaussian AABBs.
-3. **Intersects** rays stochastically (TrigHash accept/reject) along 1D Gaussian depth.
-4. **Shades** via spherical harmonics (`Material "gaussian"`).
-5. **Integrates** with full PBRT lighting (path/volpath, mirrors, glass, DOF, etc.).
+**SPP convergence (NeRF Synthetic — lego)**
 
-Unlike rasterization-based 3DGS viewers, this renderer supports **global illumination**, **non-pinhole cameras**, and **arbitrary PBRT materials** mixed with Gaussians.
+![SPP sweep on lego](report_figures/figure1_spp_sweep_lego.png)
+
+**SPP convergence (Tanks & Temples — drjohnson)**
+
+![SPP sweep on drjohnson](report_figures/figure2_spp_sweep_drjohnson.png)
+
+**Method comparison across six NeRF Synthetic scenes (64 spp)**
+
+![Methods comparison](report_figures/nerf_synthetic/methods_comparison_6scenes.png)
+
+**Stochastic vs. composite on hotdog & playroom**
+
+![Hotdog and playroom](report_figures/figure3_4_hotdog_playroom.png)
+
+| Metric | Result |
+|--------|--------|
+| Stochastic vs. composite PSNR | ~47–55 dB at 1024 spp (12 scenes) |
+| Speedup vs. composite | 5.7–20.4× at 64 spp |
+| SPP scaling | ~3 dB PSNR per 4× samples |
+| vs. rasterizer | 1–9 dB gap on typical scenes |
+
+Numbers: [`report_results/benchmark_summary.json`](report_results/benchmark_summary.json).
 
 ---
 
-## Quick start
+## What is implemented
 
-### 1. Build CPU renderer
+| Feature | Location |
+|---------|----------|
+| Binary 3DGS PLY loader (SH degree 3) | `pbrt-v4/src/pbrt/util/plyloader_3dgs.cpp` |
+| Stochastic intersection (TrigHash) | `pbrt-v4/src/pbrt/gaussian.cpp` |
+| Exact composite reference | `IntersectComposite` |
+| BVH / Kd-tree + `t_max` clipping | `IntersectBVH`, `IntersectKdTree` |
+| OursMean / OursCenter depth | `use_center_depth` |
+| N-sample single traversal | `multi_samples` |
+| 2D tile grid (NeRF Synthetic) | `use_2d_alpha` + camera params |
+
+Scenes are generated automatically from per-scene `cameras.json` via `scripts/benchmark_assets.py`.
+
+---
+
+## Environment setup
+
+### A. 3DGS training (`gaussian-splatting/`)
+
+Use the **Inria 3DGS** codebase bundled in this repo. Follow their setup:
+
+- [`gaussian-splatting/README.md`](gaussian-splatting/README.md)
+- [`gaussian-splatting/environment.yml`](gaussian-splatting/environment.yml) — Conda env with PyTorch, CUDA, `diff-gaussian-rasterization`, etc.
+
+Helper scripts for our datasets: `run_nerf_synthetic.sh`, `run_tandt_db.sh`.
+
+After training, copy outputs into the PBRT asset layout (step B).
+
+### B. PBRT renderer + report pipeline (`pbrt-v4/`)
+
+**C++ build** — same requirements as stock PBRT v4 (Visual Studio 2022, CMake ≥ 3.20). Build **CPU only**:
 
 ```powershell
 cd Final/pbrt-v4
@@ -47,254 +74,150 @@ cmake -B build -DPBRT_OPTIX_PATH=""
 cmake --build build --config Release --target pbrt_exe
 ```
 
-### 2. Install lego 3DGS asset
+Compiler, dependencies, and scene format details: [PBRT v4 documentation](https://pbrt.org/) and `pbrt-v4/README.md`.
 
-If `scenes/assets/lego/point_cloud.ply` is missing:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/setup_lego_assets.ps1
-```
-
-This downloads only `lego.ply` from the [KAIST CS479 data.zip mirror](https://drive.google.com/file/d/14YVFRR-8L8UVR_UXOe_W-ogNs0IM0572/view?usp=sharing) and installs it as `point_cloud.ply`. **No assignment source code or git history is added.**
-
-### 3. Smoke tests
+**Extra Python packages** (beyond a minimal PBRT install) for benchmarks and figures:
 
 ```powershell
-# No external assets
-.\build\Release\pbrt.exe scenes/test_unit_sphere.pbrt
-
-# 3DGS scenes (need lego PLY) — use crop for fast check
-.\build\Release\pbrt.exe --spp 4 --pixelbounds 0,64,0,64 scenes/lego_3dgs.pbrt
-.\build\Release\pbrt.exe --spp 4 --pixelbounds 0,64,0,64 scenes/cornell_3dgs.pbrt
-.\build\Release\pbrt.exe --spp 4 scenes/dof_scene.pbrt
-.\build\Release\pbrt.exe --spp 4 scenes/occlusion.pbrt
+pip install numpy pillow OpenEXR Imath scikit-image python-docx plyfile
+# optional, for LPIPS in benchmark metrics:
+pip install torch lpips
 ```
 
-Full HD renders (800×800, 64+ spp) with ~322k Gaussians can take **many minutes** on CPU.
-
-### 4. GPU build (optional)
-
-```powershell
-powershell -ExecutionPolicy Bypass -File tools/build_gpu.ps1
-.\build-gpu\Release\pbrt.exe --gpu --spp 4 scenes/lego_3dgs.pbrt
-```
-
-Requires CUDA 12.x + OptiX 7.7 (see `tools/` and HW2 scripts).
+| Package | Used by |
+|---------|---------|
+| `numpy`, `Pillow`, `OpenEXR`, `Imath` | `report_benchmark_pipeline.py`, `exr_to_png.py` |
+| `scikit-image` | SSIM in benchmarks |
+| `python-docx` | `update_report_from_results.py`, `insert_methods_comparison_docx.py` |
+| `plyfile` | `make_ply_previews.py` |
+| `torch`, `lpips` | LPIPS only (optional; skipped if missing) |
 
 ---
 
-## Scenes
+## Assets
 
-### Ready without extra assets (20 scenes)
+Git tracks **metadata** under `pbrt-v4/scenes/assets/` (`cameras.json`, metrics JSON). Large files stay **local**:
 
-All `test_*.pbrt`, `broken-normals*.pbrt`, `test_sphere.pbrt` — procedural geometry, for build/regression.
+```
+pbrt-v4/scenes/assets/3dgs/<scene>/point_cloud/iteration_30000/point_cloud.ply
+pbrt-v4/scenes/assets/tandt_db/<scene>/point_cloud/iteration_30000/point_cloud.ply
+pbrt-v4/scenes/assets/<dataset>/<scene>/test/ours_30000/   # GT + rasterizer PNGs
+```
 
-### 3DGS scenes (require `assets/lego/point_cloud.ply`)
+**Scenes:** `chair`, `drums`, `ficus`, `hotdog`, `lego`, `materials`, `mic`, `ship` (3dgs) · `drjohnson`, `playroom`, `train`, `truck` (tandt_db).
 
-| Scene | Purpose |
-|-------|---------|
-| `lego_3dgs.pbrt` | Minimal 3DGS + distant light; ablation baseline |
-| `cornell_3dgs.pbrt` | Cornell box + scaled lego + glass sphere + mirror wall |
-| `dof_scene.pbrt` | Depth of field + background spheres |
-| `occlusion.pbrt` | Glass panel in front of 3DGS |
-
-### Still needs separate training (not bundled)
-
-| Scene | Asset |
-|-------|-------|
-| `soft_shadow.pbrt` | `assets/room/point_cloud.ply` (Mip-NeRF 360 **room**) |
+Copy from `gaussian-splatting/output/...` after training, or use your own 3DGS exports that match the standard PLY layout (binary, SH degree 3).
 
 ---
 
-## Scene syntax (3DGS)
+## Reproduce benchmarks & figures
+
+```powershell
+cd Final/pbrt-v4
+
+# Render + metrics → report_results/benchmark_summary.json
+python scripts/report_benchmark_pipeline.py
+
+# Compose figures (skip render if report_assets/ PNGs already exist)
+python scripts/make_report_section_figures.py --skip-render
+python scripts/make_nerf_extra_sweep_figures.py --skip-render
+
+# Update report.docx tables
+python scripts/update_report_from_results.py
+python scripts/insert_methods_comparison_docx.py
+```
+
+`report_assets/` stores per-view PNG previews (SPP 1/32/64/1024); EXR intermediates are gitignored.
+
+---
+
+## Directory layout
+
+```
+Final/
+├── report_results/          # benchmark_summary.json, lego_ablation.json
+├── report_assets/           # per-view PNG previews
+├── report_figures/          # composed figures (above)
+├── gaussian-splatting/      # 3DGS training (Inria)
+└── pbrt-v4/
+    ├── src/pbrt/            # Gaussian extension
+    ├── scenes/assets/       # scene metadata (+ local PLY)
+    └── scripts/             # benchmark & figure pipeline
+```
+
+---
+
+## Scene syntax
+
+Auto-generated scenes use this shape block:
 
 ```pbrt
 Shape "gaussiancloud"
-    "string filename"   ["assets/lego/point_cloud.ply"]
+    "string filename" ["../assets/3dgs/lego/point_cloud/iteration_30000/point_cloud.ply"]
     "float sigma_cutoff" [2.828]
-    "integer sh_degree"  [3]
-    "bool use_center_depth" [true]
-    "string internal_accel" ["bvh"]   # or "kdtree"
-
-Material "gaussian"
     "integer sh_degree" [3]
+    "bool use_center_depth" ["false"]
+    "string sampling_mode" ["stochastic"]
+    "string internal_accel" ["bvh"]
+    "integer multi_samples" [64]
+    "bool use_2d_alpha" ["true"]
 ```
 
-Named materials (Cornell / DOF scenes):
-
-```pbrt
-MakeNamedMaterial "gsmat"
-    "string type" ["gaussian"]
-    "integer sh_degree" [3]
-NamedMaterial "gsmat"
-```
+`Material "gaussian"` with matching `sh_degree` is required.
 
 ---
 
-## Experiments & ablation
+## Scripts
 
-Scripts under `pbrt-v4/scripts/`:
-
-| Script | Purpose |
-|--------|---------|
-| `setup_lego_assets.ps1` | Install lego PLY |
-| `ablation_runner.py` + `ablations.yaml` | Batch ablation variants |
-| `sigma_sweep.py` | σ cutoff sweep |
-| `render_spp_sweep.ps1` | SPP convergence |
-| `eval_psnr.py` | PSNR/SSIM vs reference |
-| `plot_ablations.py`, `plot_convergence.py` | Figures |
-
-Example:
-
-```powershell
-pip install pyyaml numpy imageio
-python scripts/ablation_runner.py --config scripts/ablations.yaml --pbrt build/Release/pbrt.exe
-```
-
-Ablation knobs: `use_center_depth`, `sigma_cutoff`, `internal_accel`, `sh_degree`, `--spp`, scene-level `Integrator` / `Accelerator`.
-
----
-
-## Training your own 3DGS for this codebase
-
-Use the **official Inria trainer** — not the KAIST rasterization homework (that repo is only a convenient **pre-trained lego PLY** source).
-
-### Step 1 — Clone official 3DGS
-
-```bash
-git clone https://github.com/graphdeco-inria/gaussian-splatting --recursive
-cd gaussian-splatting
-pip install -r requirements.txt
-```
-
-### Step 2 — Prepare input data
-
-**Option A — NeRF Synthetic** (object-centric, like lego):
-
-1. Download a scene from [NeRF Synthetic](https://drive.google.com/drive/folders/128yBriW1IG_3NJ5Rp7APSTZsJqdJdfc1) (e.g. `lego/`).
-2. Folder must contain `transforms_train.json`, `transforms_test.json`, `train/`, `test/` images.
-
-**Option B — COLMAP / Mip-NeRF 360** (room, garden, bicycle, …):
-
-1. Download images from [Mip-NeRF 360](https://jonbarron.info/mipnerf360/) or [3DGS project page](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/).
-2. Run COLMAP / use the project's `convert.py` as documented in the gaussian-splatting README until you have a `source_path` with `sparse/` and `images/`.
-
-### Step 3 — Train
-
-```bash
-python train.py -s /path/to/dataset -m output/my_scene --iterations 30000
-```
-
-Default SH degree is **3** — matches this PBRT loader.
-
-### Step 4 — Copy output PLY
-
-Official output:
-
-```
-output/my_scene/point_cloud/iteration_30000/point_cloud.ply
-```
-
-Install into PBRT:
-
-```
-Final/pbrt-v4/scenes/assets/<scene_name>/point_cloud.ply
-```
-
-Example for a new `room` scene:
-
-```
-scenes/assets/room/point_cloud.ply
-```
-
-Update `soft_shadow.pbrt` (or duplicate `lego_3dgs.pbrt` and change the `filename` parameter).
-
-### Step 5 — Adapt the `.pbrt` scene
-
-- **Scale / translate** the `Shape "gaussiancloud"` block — NeRF objects are ~unit-sized; Cornell uses `Scale 0.4`.
-- **Camera** — adjust `LookAt` / `fov` so Gaussians are in frame.
-- **Coordinate system** — same as COLMAP/NeRF training; if the model appears upside-down, add `Rotate` in the shape's `AttributeBegin` block.
-
-### PLY compatibility checklist
-
-| Requirement | Official 3DGS `point_cloud.ply` |
-|-------------|----------------------------------|
-| Binary little-endian | Yes |
-| `f_rest_0` … `f_rest_44` | Yes (degree 3) |
-| Log-scale + logit opacity in file | Yes (loader applies `exp` / `sigmoid`) |
-
-If you train with `--sh_degree 0` or `1`, the PLY will have fewer `f_rest_*` properties and **will not load** until you retrain at degree 3 or extend `plyloader_3dgs.cpp`.
-
----
-
-## Key implementation files
-
-| Component | Path |
-|-----------|------|
-| PLY loader | `src/pbrt/util/plyloader_3dgs.cpp` |
-| Gaussian shape + BVH | `src/pbrt/gaussian.cpp` |
-| Gaussian material | `src/pbrt/materials.h`, `gaussian_eval.h` |
-| TrigHash RNG | `src/pbrt/util/trighash.h` |
-| SH evaluation | `src/pbrt/util/sphericalharmonics.h` |
-| OptiX GPU | `src/pbrt/gpu/optix/gaussian_optix.cu` |
-
-More detail: [`pbrt-v4/README_GAUSSIAN.md`](pbrt-v4/README_GAUSSIAN.md).
+| Script | Role |
+|--------|------|
+| `report_benchmark_pipeline.py` | Full CPU benchmark → JSON |
+| `benchmark_assets.py` | Scene layout + `.pbrt` generation |
+| `cameras_json_to_pbrt.py` | Camera params from training export |
+| `exr_to_png.py` | EXR → PNG |
+| `make_report_section_figures.py` | SPP sweep figures |
+| `make_nerf_extra_sweep_figures.py` | 6-scene method grid |
+| `update_report_from_results.py` | Fill `report.docx` tables |
+| `insert_methods_comparison_docx.py` | Insert method-comparison figure |
+| `make_ply_previews.py` | PLY preview PNGs for documentation |
+| `recompute_summary_metrics.py` | Recompute metrics from existing renders |
+| `retime_composite.py` | Update composite timings in JSON |
 
 ---
 
 ## Troubleshooting
 
-| Symptom | Fix |
-|---------|-----|
-| `unable to open 3DGS PLY` | Run `scripts/setup_lego_assets.ps1` or copy PLY manually |
-| `only binary_little_endian` | Re-export from official 3DGS; don't use ASCII PLY |
-| `missing f_rest_*` | Train with SH degree 3 |
-| No progress bar | Remove `--quiet` |
-| Render very slow | Use `--spp 4 --pixelbounds …` or GPU `--gpu` |
-| Empty / wrong framing | Add `Scale` / `Translate` / adjust camera |
+| Issue | Fix |
+|-------|-----|
+| `unable to open 3DGS PLY` | Place `point_cloud.ply` under `scenes/assets/.../iteration_30000/` |
+| `only binary_little_endian` | Use standard 3DGS binary export |
+| Missing `f_rest_*` | Train at SH degree 3 |
+| `pip install OpenEXR Imath` | Required to read pbrt EXR output in Python |
+| `report.docx` locked | Close Word before running docx scripts |
 
 ---
 
 ## References
 
-### Papers
+### Primary (algorithm implemented in this project)
 
-1. **Kerbl, Kopanas, Leimkühler, Drettakis** — *3D Gaussian Splatting for Real-Time Radiance Field Rendering*, SIGGRAPH 2023.  
-   https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/
+**Sun, X., Georgiev, I., Fei, Y., and Hašan, M.** (2025).  
+*Stochastic Ray Tracing of Transparent 3D Gaussians.*  
+Eurographics Symposium on Rendering (EGSR) 2025.  
+arXiv: [2504.06598](https://arxiv.org/abs/2504.06598) · DOI: [10.48550/arXiv.2504.06598](https://doi.org/10.48550/arXiv.2504.06598)
 
-2. **Mildenhall et al.** — *NeRF: Representing Scenes as Neural Radiance Fields for View Synthesis*, ECCV 2020.  
-   https://www.matthewtancik.com/nerf
+Stochastic accept/reject along a single BVH traversal (TrigHash RNG), optional N-sample extension, OursMean/OursCenter depth modes, and exact compositing as reference — this repo ports these ideas into PBRT v4 on CPU.
 
-3. **Barron et al.** — *Mip-NeRF 360: Unbounded Anti-Aliased Neural Radiance Fields*, CVPR 2022.  
-   https://jonbarron.info/mipnerf360/
+### Related
 
-4. **Pharr, Jakob, Humphreys** — *Physically Based Rendering: From Theory to Implementation* (PBRT v4).  
-   https://pbrt.org/
+**Kerbl, B., Kopanas, G., Leimkühler, T., and Drettakis, G.** (2023).  
+*3D Gaussian Splatting for Real-Time Radiance Field Rendering.* SIGGRAPH 2023.  
+https://github.com/graphdeco-inria/gaussian-splatting
 
-### Software & data
-
-5. **graphdeco-inria/gaussian-splatting** — official training code.  
-   https://github.com/graphdeco-inria/gaussian-splatting
-
-6. **PBRT v4 source** — base renderer.  
-   https://github.com/mmp/pbrt-v4
-
-7. **NeRF Synthetic dataset** (CC BY 4.0).  
-   https://drive.google.com/drive/folders/128yBriW1IG_3NJ5Rp7APSTZsJqdJdfc1
-
-8. **KAIST CS479 Assignment 3DGS** — course assignment; **lego.ply** and NeRF test images used as pre-trained asset only (not vendored as code).  
-   https://github.com/KAIST-Visual-AI-Group/CS479-Assignment-3DGS  
-   Data mirror: https://drive.google.com/file/d/14YVFRR-8L8UVR_UXOe_W-ogNs0IM0572/view?usp=sharing
-
-9. **torch-splatting** (referenced by KAIST assignment).  
-   https://github.com/hbb1/torch-splatting
-
-### Course / repo context
-
-10. **Digital Image Synthesis** — HW2 uniform grid / HW0–HW2 assignments in parent repo.
-
----
+**Pharr, M., Jakob, W., and Humphreys, G.** (2023).  
+*Physically Based Rendering: From Theory to Implementation* (4th ed.).  
+https://pbrt.org/
 
 ## License
 
-PBRT v4 is Apache 2.0 (`pbrt-v4/LICENSE.txt`). Project extensions follow the same license. Third-party datasets and the KAIST assignment data are subject to their respective terms — cite them in your report.
+PBRT v4: Apache 2.0. Dataset terms apply to trained models and images.
