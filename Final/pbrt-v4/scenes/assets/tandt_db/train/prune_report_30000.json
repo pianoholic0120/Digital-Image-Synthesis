@@ -1,0 +1,22 @@
+{
+  "total": 191398,
+  "kept": 176889,
+  "removed": 14509,
+  "removed_low_opacity": 4683,
+  "removed_far_bright": 9804,
+  "removed_large_blob": 212,
+  "max_scale_before": 21.931339263916016,
+  "max_scale_after": 15.919438362121582,
+  "opacity_gt_0.5_before": 0.5788722975161705,
+  "opacity_gt_0.5_after": 0.5892565394117215,
+  "profile": "tnt_outdoor",
+  "input": "/D/data3/arthur/tandt_db/output/train/point_cloud/iteration_30000/point_cloud.ply",
+  "output": "/D/data3/arthur/tandt_db/output/train/point_cloud/iteration_30000/point_cloud_pruned.ply",
+  "config": {
+    "min_opacity": 0.005,
+    "max_scale_mult": 2.5,
+    "far_dist_pct": 85.0,
+    "bright_dc_thresh": 3.5,
+    "large_scale_opacity": 0.3
+  }
+}

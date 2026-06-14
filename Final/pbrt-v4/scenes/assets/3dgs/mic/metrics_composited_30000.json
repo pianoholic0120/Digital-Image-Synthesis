@@ -1,0 +1,11 @@
+{
+  "iteration": 30000,
+  "white_background": true,
+  "test": {
+    "psnr_mean": 34.70853485107422,
+    "psnr_std": 1.4935874457363356,
+    "ssim_mean": 0.9896230423450469,
+    "l1_mean": 0.003325410943944007,
+    "num_views": 200
+  }
+}

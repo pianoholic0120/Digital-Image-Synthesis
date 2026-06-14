@@ -1,0 +1,22 @@
+{
+  "total": 57336,
+  "kept": 54721,
+  "removed": 2615,
+  "removed_low_opacity": 1639,
+  "removed_far_bright": 1008,
+  "removed_large_blob": 0,
+  "max_scale_before": 0.38129138946533203,
+  "max_scale_after": 0.38129138946533203,
+  "opacity_gt_0.5_before": 0.6566031812473838,
+  "opacity_gt_0.5_after": 0.677180607079549,
+  "profile": "synthetic_edge",
+  "input": "/D/data3/arthur/nerf_synthetic/output/lego/point_cloud/iteration_30000/point_cloud.ply",
+  "output": "/D/data3/arthur/nerf_synthetic/output/lego/point_cloud/iteration_30000/point_cloud_pruned.ply",
+  "config": {
+    "min_opacity": 0.008,
+    "max_scale_mult": 2.5,
+    "far_dist_pct": 80.0,
+    "bright_dc_thresh": 3.0,
+    "large_scale_opacity": 0.25
+  }
+}

@@ -1,0 +1,70 @@
+# Mic 3DGS + vertical mirror wall (Cornell-style GI showcase)
+
+Film "rgb"
+    "string filename" ["renders/gi_showcase/mic_mirror_stochastic.exr"]
+    "integer xresolution" [256] "integer yresolution" [256]
+
+Sampler "halton"
+    "integer pixelsamples" [4]
+
+Integrator "path"
+    "integer maxdepth" [8]
+
+Accelerator "bvh"
+
+# Frontal view: mic left, mirror panel right; reflection visible in mirror.
+LookAt 0.0 0.55 4.5  0.0 0.55 0.0  0 1 0
+Camera "perspective"
+    "float fov" [35]
+
+WorldBegin
+
+MakeNamedMaterial "backdrop"
+    "string type" ["diffuse"]
+    "rgb reflectance" [0.04 0.04 0.045]
+MakeNamedMaterial "mirror"
+    "string type" ["conductor"]
+    "rgb reflectance" [0.82 0.82 0.85]
+    "float roughness" [0.0005]
+MakeNamedMaterial "gsmat"
+    "string type" ["gaussian"]
+    "integer sh_degree" [3]
+
+AttributeBegin
+    NamedMaterial "backdrop"
+    Translate 0 -0.02 0
+    Shape "bilinearmesh"
+        "point3 P" [ -3 0 -3  3 0 -3  3 0 3  -3 0 3 ]
+AttributeEnd
+
+AttributeBegin
+    NamedMaterial "mirror"
+    Translate 0.42 0.35 0.0
+    Rotate -90 0 1 0
+    Shape "bilinearmesh"
+        "point3 P" [ -1.2 0 -1.2  1.2 0 -1.2  1.2 0 1.2  -1.2 0 1.2 ]
+AttributeEnd
+
+AttributeBegin
+    NamedMaterial "gsmat"
+    Scale 0.358001 0.358001 0.358001
+    Translate -0.105929 0.926189 -0.078613
+    Shape "gaussiancloud"
+        "string filename" ["assets/3dgs/mic/point_cloud/iteration_30000/point_cloud.ply"]
+        "float sigma_cutoff" [2.828]
+        "integer sh_degree" [3]
+        "bool use_center_depth" [false]
+        "string sampling_mode" ["stochastic"]
+        "string internal_accel" ["bvh"]
+        "integer multi_samples" [4]
+        "bool use_2d_alpha" [false]
+AttributeEnd
+
+LightSource "distant"
+    "rgb L" [1.0 0.98 0.94]
+    "float scale" [5.5]
+    "point3 from" [0.25 -0.45 -0.35]
+    "point3 to" [0 0.2 0]
+LightSource "infinite"
+    "rgb L" [0.85 0.88 0.95]
+    "float scale" [0.25]

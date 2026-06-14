@@ -1,0 +1,22 @@
+{
+  "total": 52861,
+  "kept": 48996,
+  "removed": 3865,
+  "removed_low_opacity": 3857,
+  "removed_far_bright": 8,
+  "removed_large_blob": 0,
+  "max_scale_before": 0.3549386262893677,
+  "max_scale_after": 0.29740646481513977,
+  "opacity_gt_0.5_before": 0.40527042621214127,
+  "opacity_gt_0.5_after": 0.4372397746754837,
+  "profile": "synthetic",
+  "input": "/D/data3/arthur/nerf_synthetic/output/hotdog/point_cloud/iteration_30000/point_cloud.ply",
+  "output": "/D/data3/arthur/nerf_synthetic/output/hotdog/point_cloud/iteration_30000/point_cloud_pruned.ply",
+  "config": {
+    "min_opacity": 0.008,
+    "max_scale_mult": 3.0,
+    "far_dist_pct": 85.0,
+    "bright_dc_thresh": 3.5,
+    "large_scale_opacity": 0.3
+  }
+}

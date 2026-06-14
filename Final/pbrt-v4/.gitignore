@@ -18,17 +18,26 @@ results/
 trace_*.log
 malformed.txt
 
-# Large scene assets (PLY etc.; root .gitignore also has **/*.ply)
-scenes/assets/
+# --- scenes/ (report repo: only GI demos + asset metadata on GitHub) ---
+# Ignore everything at scenes root except the two GI showcase scenes.
+scenes/*
+!scenes/gi_drjohnson_teapot.pbrt
+!scenes/gi_mic_mirror.pbrt
+!scenes/assets/
 
-# Auto-generated scene files (regenerate via scripts/)
+# Asset metadata only (PLY/OBJ/renders stay local).
+scenes/assets/**/point_cloud/
+scenes/assets/**/test/
+scenes/assets/**/*.obj
+scenes/assets/**/*.png
+scenes/assets/**/cfg_args
+scenes/assets/props/*
+!scenes/assets/props/teapot_clean.ply
+
+# Auto-generated scratch (regenerate via scripts/)
 scenes/benchmark/
 scenes/tandt_db/
-scenes/3dgs/_*
-scenes/3dgs/_bvh_validate/
-scenes/3dgs/quick_test_*
-scenes/3dgs/mode_test_*
-scenes/3dgs/trace_test.pbrt
+scenes/3dgs/
 
 # Python cache under scripts (keep .py source tracked)
 scripts/__pycache__/

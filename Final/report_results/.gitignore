@@ -1,0 +1,3 @@
+# Keep only final benchmark JSON; logs are ephemeral.
+*.log
+.benchmark.lock

@@ -1,0 +1,54 @@
+# Drjohnson 3DGS + teapot (view 00017, mixed geometry GI)
+
+Film "rgb"
+    "string filename" ["renders/gi_showcase/drjohnson_teapot_stochastic.exr"]
+    "integer xresolution" [666] "integer yresolution" [438]
+
+Sampler "halton"
+    "integer pixelsamples" [4]
+
+Integrator "path"
+    "integer maxdepth" [8]
+
+Accelerator "bvh"
+
+Transform [-0.467333563 0.593262768 -0.655468251 0.000000000 -0.419457383 0.503858233 0.755104221 0.000000000 -0.778238296 -0.627826543 -0.013378585 0.000000000 2.854808419 0.535078813 1.722715657 1.000000000]
+Camera "perspective"
+    "float fov" [45.87615402005136]
+
+WorldBegin
+
+MakeNamedMaterial "ceramic"
+    "string type" ["diffuse"]
+    "rgb reflectance" [0.88 0.82 0.74]
+MakeNamedMaterial "gsmat"
+    "string type" ["gaussian"]
+    "integer sh_degree" [3]
+
+AttributeBegin
+    NamedMaterial "gsmat"
+    Shape "gaussiancloud"
+        "string filename" ["assets/tandt_db/drjohnson/point_cloud/iteration_30000/point_cloud.ply"]
+        "float sigma_cutoff" [2.828]
+        "integer sh_degree" [3]
+        "bool use_center_depth" [false]
+        "string sampling_mode" ["stochastic"]
+        "string internal_accel" ["bvh"]
+        "integer multi_samples" [4]
+        "bool use_2d_alpha" [false]
+        "float min_opacity" [0.00392156862745098]
+        "float max_scale_percentile" [5.0]
+        "float prune_outlier_dc" [0.0]
+        "float prune_outlier_distance_frac" [0.85]
+        "rgb background" [0 0 0]
+AttributeEnd
+
+AttributeBegin
+    NamedMaterial "ceramic"
+    Translate 2.703 -1.015 2.592
+    Rotate -20 0 1 0
+    Scale 0.0650 0.0650 0.0650
+    Translate -0.260 -0.370 -2.455
+    Shape "plymesh"
+        "string filename" ["assets/props/teapot_clean.ply"]
+AttributeEnd

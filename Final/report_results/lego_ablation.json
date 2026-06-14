@@ -1,0 +1,101 @@
+{
+  "frame": 0,
+  "rows": [
+    {
+      "config": "Depth mode",
+      "variant": "OursCenter (default)",
+      "time_s": 1.88,
+      "psnr_vs_composite": 38.07650812655599,
+      "ssim_vs_composite": 0.9853696823120117,
+      "lpips_vs_composite": 0.01365573238581419
+    },
+    {
+      "config": "Depth mode",
+      "variant": "OursMean",
+      "time_s": 2.13,
+      "psnr_vs_composite": 33.31750104875808,
+      "ssim_vs_composite": 0.9695356488227844,
+      "lpips_vs_composite": 0.024746062234044075
+    },
+    {
+      "config": "sigma cutoff",
+      "variant": "1.5",
+      "time_s": 1.05,
+      "psnr_vs_composite": 27.053899020907387,
+      "ssim_vs_composite": 0.9311604499816895,
+      "lpips_vs_composite": 0.06245545297861099
+    },
+    {
+      "config": "sigma cutoff",
+      "variant": "2.0",
+      "time_s": 1.37,
+      "psnr_vs_composite": 31.313236584611577,
+      "ssim_vs_composite": 0.9623656868934631,
+      "lpips_vs_composite": 0.03361380100250244
+    },
+    {
+      "config": "sigma cutoff",
+      "variant": "2.828 (default)",
+      "time_s": 2.14,
+      "psnr_vs_composite": 33.31750104875808,
+      "ssim_vs_composite": 0.9695356488227844,
+      "lpips_vs_composite": 0.024746062234044075
+    },
+    {
+      "config": "sigma cutoff",
+      "variant": "3.5",
+      "time_s": 2.94,
+      "psnr_vs_composite": 33.10295436058985,
+      "ssim_vs_composite": 0.9682736992835999,
+      "lpips_vs_composite": 0.02613789774477482
+    },
+    {
+      "config": "Accelerator",
+      "variant": "BVH (default)",
+      "time_s": 2.18,
+      "psnr_vs_composite": 33.31750104875808,
+      "ssim_vs_composite": 0.9695356488227844,
+      "lpips_vs_composite": 0.024746062234044075
+    },
+    {
+      "config": "Accelerator",
+      "variant": "kd-tree",
+      "time_s": 2.03,
+      "psnr_vs_composite": 33.31750104875808,
+      "ssim_vs_composite": 0.9695356488227844,
+      "lpips_vs_composite": 0.024746062234044075
+    },
+    {
+      "config": "SPP",
+      "variant": "1",
+      "time_s": 1.63,
+      "psnr_vs_composite": 15.326650692086714,
+      "ssim_vs_composite": 0.762110710144043,
+      "lpips_vs_composite": 0.29723310470581055
+    },
+    {
+      "config": "SPP",
+      "variant": "32",
+      "time_s": 1.88,
+      "psnr_vs_composite": 32.40231567826501,
+      "ssim_vs_composite": 0.9600942134857178,
+      "lpips_vs_composite": 0.037425145506858826
+    },
+    {
+      "config": "SPP",
+      "variant": "64",
+      "time_s": 2.39,
+      "psnr_vs_composite": 33.31750104875808,
+      "ssim_vs_composite": 0.9695356488227844,
+      "lpips_vs_composite": 0.024746062234044075
+    },
+    {
+      "config": "SPP",
+      "variant": "256",
+      "time_s": 8.62,
+      "psnr_vs_composite": 34.14879435136375,
+      "ssim_vs_composite": 0.9775946140289307,
+      "lpips_vs_composite": 0.015416880138218403
+    }
+  ]
+}

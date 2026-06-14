@@ -7,8 +7,14 @@ pbrt-v4/build/
 Final/pbrt-v4/build/
 Final/pbrt-v4/build-gpu/
 
-# Large 3DGS assets (use scripts/setup_lego_assets.ps1)
+# Large 3DGS assets (point clouds stay local; small teapot prop is tracked)
+Final/pbrt-v4/scenes/assets/**/point_cloud/
 Final/pbrt-v4/scenes/assets/**/*.ply
+!Final/pbrt-v4/scenes/assets/props/teapot_clean.ply
+
+# Benchmark logs (JSON results are tracked)
+Final/report_results/*.log
+Final/report_results/.benchmark.lock
 
 # Render outputs
 *.exr
