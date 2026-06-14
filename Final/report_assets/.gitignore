@@ -1,0 +1,11 @@
+# High-bit-depth intermediates — regenerate with report_benchmark_pipeline.py
+**/*.exr
+
+# Per-view metric sidecars
+**/metrics.txt
+
+# SPP levels outside the report set (track PNG at 1, 32, 64, 1024 only)
+**/spp_0004/**
+**/spp_0016/**
+**/spp_0256/**
+**/spp_2048/**
