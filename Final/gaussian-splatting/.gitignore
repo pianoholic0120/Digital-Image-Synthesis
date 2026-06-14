@@ -24,3 +24,5 @@ build/
 # Legacy paths from older layouts
 diff_rasterization/diff_rast.egg-info
 diff_rasterization/dist
+
+SIBR_viewers/
