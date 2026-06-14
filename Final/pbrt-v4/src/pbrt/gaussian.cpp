@@ -173,9 +173,17 @@ SampledSpectrum EvaluateGaussianSH(const GaussianCloud *cloud, int gaussianIndex
 
 RGB EvaluateGaussianRGB(const GaussianCloud *cloud, int gaussianIndex,
                         const Vector3f &viewDir) {
-    if (!cloud)
+    if (!cloud || gaussianIndex < 0 || gaussianIndex >= cloud->NumGaussians())
         return RGB(0.f, 0.f, 0.f);
     return EvaluateSHRGB(viewDir, cloud->GetGaussian(gaussianIndex).sh, cloud->SHDegree());
+}
+
+static Normal3f SafeGaussianNormal(Vector3f d2mu, Vector3f fallbackDir) {
+    if (LengthSquared(d2mu) > 1e-16f)
+        return Normal3f(Normalize(d2mu));
+    if (LengthSquared(fallbackDir) < 1e-16f)
+        fallbackDir = Vector3f(0, 1, 0);
+    return Normal3f(Normalize(fallbackDir));
 }
 
 static void FinishGaussianInteraction(SurfaceInteraction &si, Normal3f n,
@@ -256,6 +264,8 @@ void GaussianCloud::BindMaterial(Material material) { boundMaterial = material; 
 
 SampledSpectrum GaussianCloud::EvaluateGaussianColor(int index, const Vector3f &viewDir,
                                                      SampledWavelengths &wl) const {
+    if (index < 0 || index >= NumGaussians())
+        return SampledSpectrum(0.f);
     return EvaluateSHColor(viewDir, gaussians[index].sh, shDegree, wl);
 }
 
@@ -272,8 +282,9 @@ Float GaussianCloud::EvalMeanDepthT(const Gaussian3D &g, const Ray &objectRay) {
     Vector3f sinvd = g.sigmaInv * objectRay.d;
     Float denom = Dot(objectRay.d, sinvd);
     if (std::abs(denom) < 1e-8f)
-        return Infinity;
-    return Dot(diff, sinvd) / denom;
+        return -1.f;
+    Float t = Dot(diff, sinvd) / denom;
+    return IsFinite(t) ? t : -1.f;
 }
 
 Float GaussianCloud::EvalAlphaDepthT(const Gaussian3D &g, const Ray &objectRay) const {
@@ -291,6 +302,8 @@ Float GaussianCloud::EvalAlphaDepthT(const Gaussian3D &g, const Ray &objectRay) 
 GaussianCloud::GaussianAlphaEval GaussianCloud::EvalGaussianAlpha(
     const Gaussian3D &g, const Ray &objectRay) const {
     Float tAlpha = EvalAlphaDepthT(g, objectRay);
+    if (tAlpha <= 0.f || !IsFinite(tAlpha))
+        return {-1.f, sigmaCutoff * sigmaCutoff + 1.f, 0.f};
     Point3f p = objectRay(tAlpha);
     Vector3f d2mu = p - g.mu;
     Float mhd2 = Dot(d2mu, g.sigmaInv * d2mu);
@@ -603,10 +616,10 @@ void GaussianCloud::BuildKdTree() {
 }
 
 Bounds3f GaussianCloud::Bounds() const {
-    // Composite and stochastic both need a catch-all bound when the scene uses a
-    // visible background: otherwise primary rays over empty pixels never hit this
-    // shape and IntersectComposite / StochasticMissResult never runs.
-    if (HasVisibleBackground(backgroundColor)) {
+    // In mixed-geometry path tracing (use_2d_alpha=false), keep tight bounds so
+    // mesh primitives can win ray intersections.  Expanded bounds are only needed
+    // for pure 3DGS views that rely on StochasticMissResult / composite background.
+    if (HasVisibleBackground(backgroundColor) && use2DAlpha) {
         Bounds3f expanded = Union(
             bounds, Bounds3f(Point3f(-1e4f, -1e4f, -1e4f), Point3f(1e4f, 1e4f, 1e4f)));
         return (*renderFromObject)(expanded);
@@ -666,16 +679,22 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectComposite(const Ray &o
     std::vector<Candidate> candidates;
     candidates.reserve(256);
 
-    const bool use2D = use2DAlpha && cameraParams.valid;
+    // Tile grid is for candidate lookup whenever camera intrinsics exist; 2D α mode
+    // additionally skips the per-Gaussian AABB guard (projected footprint may extend
+    // beyond the conservative 3D ellipsoid bounds).
+    const bool use2DGrid = cameraParams.valid && !grid2D.empty();
+    const bool skipAABBFor2D = use2DAlpha && cameraParams.valid;
 
     auto testGaussian = [&](int gIndex) {
+        if (gIndex < 0 || gIndex >= NumGaussians())
+            return;
         const Gaussian3D &g = gaussians[gIndex];
         // Per-Gaussian AABB slab test (OursCenter can pass mhd² at projected t even when
         // the ray misses the conservative ellipsoid bounds along the ray).
         // When 2D camera params are available we also accept Gaussians whose AABB is
         // missed (their 3D body may not intersect the ray but their 2D projection does),
         // so we skip the AABB guard in that case.
-        if (!use2D && !g.aabb.IntersectP(objectRay.o, objectRay.d, tMax))
+        if (!skipAABBFor2D && !g.aabb.IntersectP(objectRay.o, objectRay.d, tMax))
             return;
 
         GaussianAlphaEval eval = EvalAlphaForRay(g, objectRay);
@@ -691,7 +710,7 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectComposite(const Ray &o
         candidates.push_back({gIndex, t, eval.tAlpha, eval.mhd2, eval.alpha});
     };
 
-    if (use2D) {
+    if (use2DGrid) {
         Vector3f d = Normalize(objectRay.d);
         Float dz = Dot(cameraParams.rz, d);
         if (std::abs(dz) > 1e-8f) {
@@ -700,8 +719,11 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectComposite(const Ray &o
             Float py = cameraParams.fy * Dot(cameraParams.ry, d) * inv_dz + cameraParams.cy;
             int cx_cell = std::max(0, std::min(grid2DW - 1, int(px / kGrid2DCellSize)));
             int cy_cell = std::max(0, std::min(grid2DH - 1, int(py / kGrid2DCellSize)));
-            for (int gIndex : grid2D[cy_cell * grid2DW + cx_cell])
+            for (int gIndex : grid2D[cy_cell * grid2DW + cx_cell]) {
+                if (gIndex < 0 || gIndex >= NumGaussians())
+                    continue;
                 testGaussian(gIndex);
+            }
         }
     } else if (internalAccel == InternalAccel::BRUTE) {
         for (int gIndex = 0; gIndex < (int)gaussians.size(); ++gIndex)
@@ -721,18 +743,25 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectComposite(const Ray &o
         stack[stackTop++] = {0, 0.f, tMax};
 
         while (stackTop > 0) {
-            --stackTop;
-            int nodeIndex = stack[stackTop].node;
-            Float tMin = stack[stackTop].tMin;
-            Float nodeTMax = stack[stackTop].tMax;
+            StackEntry entry = stack[--stackTop];
+            int nodeIndex = entry.node;
+            Float tMin = entry.tMin;
+            Float nodeTMax = entry.tMax;
+
+            if (nodeIndex < 0 || nodeIndex >= (int)kdNodes.size())
+                continue;
 
             const KdTreeNode &node = kdNodes[nodeIndex];
             if (!node.bounds.IntersectP(objectRay.o, objectRay.d, nodeTMax, &tMin))
                 continue;
 
             if (node.isLeaf) {
-                for (int i = 0; i < node.n; ++i)
-                    testGaussian(orderedIndices[node.start + i]);
+                for (int i = 0; i < node.n; ++i) {
+                    int oi = node.start + i;
+                    if (oi < 0 || oi >= (int)orderedIndices.size())
+                        continue;
+                    testGaussian(orderedIndices[oi]);
+                }
                 continue;
             }
 
@@ -766,16 +795,24 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectComposite(const Ray &o
         stack[stackTop++] = {0, tMax};
 
         while (stackTop > 0) {
-            int nodeIndex = stack[--stackTop].node;
-            Float nodeTMax = stack[stackTop].tMax;
+            StackEntry entry = stack[--stackTop];
+            int nodeIndex = entry.node;
+            Float nodeTMax = entry.tMax;
+
+            if (nodeIndex < 0 || nodeIndex >= (int)bvhNodes.size())
+                continue;
 
             const BVHNode &node = bvhNodes[nodeIndex];
             if (!node.bounds.IntersectP(objectRay.o, objectRay.d, nodeTMax))
                 continue;
 
             if (node.n > 0) {
-                for (int i = 0; i < node.n; ++i)
-                    testGaussian(orderedIndices[node.start + i]);
+                for (int i = 0; i < node.n; ++i) {
+                    int oi = node.start + i;
+                    if (oi < 0 || oi >= (int)orderedIndices.size())
+                        continue;
+                    testGaussian(orderedIndices[oi]);
+                }
             } else {
                 Float tSplit = (node.bounds.pMin[node.axis] + node.bounds.pMax[node.axis]) * 0.5f;
                 bool belowFirst = objectRay.o[node.axis] < tSplit ||
@@ -881,6 +918,8 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectComposite(const Ray &o
 
 pstd::optional<ShapeIntersection> GaussianCloud::IntersectBVH(const Ray &objectRay,
                                                               Float tMax) const {
+    // 2D tile grid accelerates primary-ray candidate lookup whenever camera params exist;
+    // use2DAlpha only toggles 2D α evaluation and view-depth sort, not grid availability.
     const bool canUse2DGrid = cameraParams.valid && !grid2D.empty();
     if (bvhNodes.empty() && !canUse2DGrid)
         return {};
@@ -915,13 +954,12 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectBVH(const Ray &objectR
 
     // One alpha eval per primitive; N independent RR decisions (paper §3.5).
     auto testGaussian = [&](int gIndex) {
-        const Gaussian3D &g = gaussians[gIndex];
-        Float t = EvalIntersectionT(g, objectRay);
-        if (t <= 0.f)
+        if (gIndex < 0 || gIndex >= NumGaussians())
             return;
-
+        const Gaussian3D &g = gaussians[gIndex];
         GaussianAlphaEval eval = EvalAlphaForRay(g, objectRay);
-        if (eval.tAlpha <= 0.f)
+        Float t = eval.tAlpha;
+        if (t <= 0.f || !IsFinite(t) || t >= tMax)
             return;
         if (eval.mhd2 > sigmaCutoff * sigmaCutoff)
             return;
@@ -942,7 +980,7 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectBVH(const Ray &objectR
 
             slot.currentTMax = t;
             Vector3f d2mu = p - g.mu;
-            Normal3f n(Normalize(d2mu));
+            Normal3f n = SafeGaussianNormal(d2mu, objectRay.d);
             if (reverseOrientation)
                 n = -n;
 
@@ -961,12 +999,6 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectBVH(const Ray &objectR
     };
 
     auto finalizeStochastic = [&]() -> pstd::optional<ShapeIntersection> {
-        if (N == 1) {
-            if (slots[0].best)
-                return slots[0].best;
-            return StochasticMissResult(objectRay, tMax, backgroundColor, boundMaterial);
-        }
-
         const bool visibleBg = HasVisibleBackground(backgroundColor);
         RGB sum(0.f, 0.f, 0.f);
         int hits = 0;
@@ -988,6 +1020,12 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectBVH(const Ray &objectR
                                    boundMaterial);
     };
 
+    if (internalAccel == InternalAccel::BRUTE) {
+        for (int gIndex = 0; gIndex < NumGaussians(); ++gIndex)
+            testGaussian(gIndex);
+        return finalizeStochastic();
+    }
+
     // Fast path: 2D tile grid for primary camera rays (same conservative footprint as composite).
     if (canUse2DGrid) {
         Vector3f d = Normalize(objectRay.d);
@@ -1003,6 +1041,8 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectBVH(const Ray &objectR
             std::vector<std::pair<Float, int>> ordered;
             ordered.reserve(cell.size());
             for (int gIndex : cell) {
+                if (gIndex < 0 || gIndex >= NumGaussians())
+                    continue;
                 Float sortKey;
                 if (use2DSort) {
                     // 3DGS tile sort: view-space forward depth (matches IntersectComposite).
@@ -1036,16 +1076,24 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectBVH(const Ray &objectR
     stack[stackTop++] = {0, tMax};
 
     while (stackTop > 0) {
-        int nodeIndex = stack[--stackTop].node;
-        Float nodeTMax = std::min(stack[stackTop].tMax, minSlotTMax());
+        StackEntry entry = stack[--stackTop];
+        int nodeIndex = entry.node;
+        Float nodeTMax = std::min(entry.tMax, minSlotTMax());
+
+        if (nodeIndex < 0 || nodeIndex >= (int)bvhNodes.size())
+            continue;
 
         const BVHNode &node = bvhNodes[nodeIndex];
         if (!node.bounds.IntersectP(objectRay.o, objectRay.d, nodeTMax))
             continue;
 
         if (node.n > 0) {
-            for (int i = 0; i < node.n; ++i)
-                testGaussian(orderedIndices[node.start + i]);
+            for (int i = 0; i < node.n; ++i) {
+                int oi = node.start + i;
+                if (oi < 0 || oi >= (int)orderedIndices.size())
+                    continue;
+                testGaussian(orderedIndices[oi]);
+            }
         } else {
             Float tSplit = (node.bounds.pMin[node.axis] + node.bounds.pMax[node.axis]) * 0.5f;
             bool belowFirst = objectRay.o[node.axis] < tSplit ||
@@ -1095,13 +1143,12 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectKdTree(const Ray &obje
     };
 
     auto testGaussian = [&](int gIndex) {
-        const Gaussian3D &g = gaussians[gIndex];
-        Float t = EvalIntersectionT(g, objectRay);
-        if (t <= 0.f)
+        if (gIndex < 0 || gIndex >= NumGaussians())
             return;
-
+        const Gaussian3D &g = gaussians[gIndex];
         GaussianAlphaEval eval = EvalAlphaForRay(g, objectRay);
-        if (eval.tAlpha <= 0.f)
+        Float t = eval.tAlpha;
+        if (t <= 0.f || !IsFinite(t) || t >= tMax)
             return;
         if (eval.mhd2 > sigmaCutoff * sigmaCutoff)
             return;
@@ -1122,7 +1169,7 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectKdTree(const Ray &obje
 
             slot.currentTMax = t;
             Vector3f d2mu = p - g.mu;
-            Normal3f n(Normalize(d2mu));
+            Normal3f n = SafeGaussianNormal(d2mu, objectRay.d);
             if (reverseOrientation)
                 n = -n;
 
@@ -1141,12 +1188,6 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectKdTree(const Ray &obje
     };
 
     auto finalizeStochastic = [&]() -> pstd::optional<ShapeIntersection> {
-        if (N == 1) {
-            if (slots[0].best)
-                return slots[0].best;
-            return StochasticMissResult(objectRay, tMax, backgroundColor, boundMaterial);
-        }
-
         const bool visibleBg = HasVisibleBackground(backgroundColor);
         RGB sum(0.f, 0.f, 0.f);
         int hits = 0;
@@ -1168,7 +1209,7 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectKdTree(const Ray &obje
                                    boundMaterial);
     };
 
-    // Same 2D tile-grid fast path as IntersectBVH (required when use_2d_alpha is on).
+    // Same 2D tile-grid fast path as IntersectBVH.
     const bool canUse2DGrid = cameraParams.valid && !grid2D.empty();
     if (canUse2DGrid) {
         Vector3f d = Normalize(objectRay.d);
@@ -1184,6 +1225,8 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectKdTree(const Ray &obje
             std::vector<std::pair<Float, int>> ordered;
             ordered.reserve(cell.size());
             for (int gIndex : cell) {
+                if (gIndex < 0 || gIndex >= NumGaussians())
+                    continue;
                 Float sortKey;
                 if (use2DSort) {
                     Vector3f mu_c = Vector3f(gaussians[gIndex].mu - cameraParams.pos);
@@ -1215,18 +1258,25 @@ pstd::optional<ShapeIntersection> GaussianCloud::IntersectKdTree(const Ray &obje
     stack[stackTop++] = {0, 0.f, tMax};
 
     while (stackTop > 0) {
-        --stackTop;
-        int nodeIndex = stack[stackTop].node;
-        Float tMin = stack[stackTop].tMin;
-        Float nodeTMax = std::min(stack[stackTop].tMax, minSlotTMax());
+        StackEntry entry = stack[--stackTop];
+        int nodeIndex = entry.node;
+        Float tMin = entry.tMin;
+        Float nodeTMax = std::min(entry.tMax, minSlotTMax());
+
+        if (nodeIndex < 0 || nodeIndex >= (int)kdNodes.size())
+            continue;
 
         const KdTreeNode &node = kdNodes[nodeIndex];
         if (!node.bounds.IntersectP(objectRay.o, objectRay.d, nodeTMax, &tMin))
             continue;
 
         if (node.isLeaf) {
-            for (int i = 0; i < node.n; ++i)
-                testGaussian(orderedIndices[node.start + i]);
+            for (int i = 0; i < node.n; ++i) {
+                int oi = node.start + i;
+                if (oi < 0 || oi >= (int)orderedIndices.size())
+                    continue;
+                testGaussian(orderedIndices[oi]);
+            }
             continue;
         }
 
